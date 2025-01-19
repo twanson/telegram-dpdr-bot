@@ -11,7 +11,7 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
-from openai import OpenAI
+from openai import OpenAI, AzureOpenAI
 from dotenv import load_dotenv
 
 # Configurar logging más detallado
@@ -30,8 +30,17 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-# Inicializamos el cliente de OpenAI
-client = OpenAI(api_key=OPENAI_API_KEY)
+# Inicializamos el cliente de OpenAI con configuración específica
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url="https://api.openai.com/v1",
+    http_client=OpenAI.HttpClient(
+        headers={
+            "OpenAI-Beta": "assistants=v2",
+            "Content-Type": "application/json"
+        }
+    )
+)
 
 # Diccionario para almacenar los hilos de conversación por usuario
 user_threads = {}
@@ -241,7 +250,7 @@ def main():
         application = (
             ApplicationBuilder()
             .token(BOT_TOKEN)
-            .arbitrary_callback_data(False)
+            .concurrent_updates(False)  # Cambiado a False
             .build()
         )
         
@@ -261,8 +270,9 @@ def main():
         logging.info("Bot initialized successfully")
         application.run_polling(
             drop_pending_updates=True,
-            allowed_updates=[],
+            allowed_updates=["message", "callback_query"],  # Específico
             stop_signals=None,
+            close_loop=False
         )
     except Exception as e:
         logging.error(f"Critical error: {str(e)}")

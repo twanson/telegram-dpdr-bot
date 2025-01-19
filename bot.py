@@ -1,7 +1,8 @@
 import os
-import requests
+# import requests  # Eliminar esta línea ya que no lo usamos
 import logging
 import time
+import sys
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, 
@@ -13,10 +14,11 @@ from telegram.ext import (
 from openai import OpenAI
 from dotenv import load_dotenv
 
-# Configurar logging
+# Configurar logging más detallado
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
+    level=logging.INFO,
+    stream=sys.stdout  # Asegura que los logs van a stdout
 )
 
 # Reemplaza con tu token de bot de Telegram
@@ -33,6 +35,16 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 # Diccionario para almacenar los hilos de conversación por usuario
 user_threads = {}
+
+# Añadir verificación de variables de entorno
+def verify_env_variables():
+    required_vars = ['BOT_TOKEN', 'OPENAI_API_KEY', 'ASSISTANT_ID']
+    for var in required_vars:
+        if not os.getenv(var):
+            logging.error(f"Missing environment variable: {var}")
+            sys.exit(1)
+        else:
+            logging.info(f"Found environment variable: {var}")
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja errores del bot."""
@@ -222,34 +234,39 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 def main():
-    # Creamos la aplicación con un nombre único
-    application = (
-        ApplicationBuilder()
-        .token(BOT_TOKEN)
-        .arbitrary_callback_data(False)  # Desactivamos el callback_data cache
-        .build()
-    )
-
-    # Registramos el manejador de errores
-    application.add_error_handler(error_handler)
-
-    # Registramos los handlers
-    application.add_handler(CommandHandler("start", start_command))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("reset", reset_command))
-    application.add_handler(CommandHandler("faq", faq_command))
-    application.add_handler(CommandHandler("feedback", feedback_command))
+    logging.info("Starting bot...")
+    verify_env_variables()
     
-    # Handler para mensajes de texto
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    try:
+        application = (
+            ApplicationBuilder()
+            .token(BOT_TOKEN)
+            .arbitrary_callback_data(False)
+            .build()
+        )
+        
+        # Registramos el manejador de errores
+        application.add_error_handler(error_handler)
 
-    # Iniciamos el bot con configuración más básica
-    logging.info("Bot iniciado")
-    application.run_polling(
-        drop_pending_updates=True,
-        allowed_updates=[],  # No permitimos actualizaciones pendientes
-        stop_signals=None,   # Desactivamos señales de parada
-    )
+        # Registramos los handlers
+        application.add_handler(CommandHandler("start", start_command))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("reset", reset_command))
+        application.add_handler(CommandHandler("faq", faq_command))
+        application.add_handler(CommandHandler("feedback", feedback_command))
+        
+        # Handler para mensajes de texto
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        logging.info("Bot initialized successfully")
+        application.run_polling(
+            drop_pending_updates=True,
+            allowed_updates=[],
+            stop_signals=None,
+        )
+    except Exception as e:
+        logging.error(f"Critical error: {str(e)}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

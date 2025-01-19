@@ -33,7 +33,8 @@ ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
     api_key=OPENAI_API_KEY,
-    base_url="https://api.openai.com/v1",  # Aseguramos que usamos la URL correcta
+    base_url="https://api.openai.com/v1",
+    headers={"OpenAI-Beta": "assistants=v2"}  # Añadimos el header específico para v2
 )
 
 # Diccionario para almacenar los hilos de conversación por usuario

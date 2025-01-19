@@ -13,6 +13,7 @@ from telegram.ext import (
 )
 from openai import OpenAI, AzureOpenAI
 from dotenv import load_dotenv
+import httpx
 
 # Configurar logging más detallado
 logging.basicConfig(
@@ -33,9 +34,15 @@ ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
     api_key=OPENAI_API_KEY,
-    base_url="https://api.openai.com/v1",
-    default_headers={"OpenAI-Beta": "assistants=v2"}  # Solo este header
+    default_headers={"OpenAI-Beta": "assistants=v2"}
 )
+
+# Configuramos el cliente HTTP personalizado
+http_client = httpx.Client(
+    headers={"OpenAI-Beta": "assistants=v2"},
+    base_url="https://api.openai.com/v1"
+)
+client._client = http_client
 
 # Diccionario para almacenar los hilos de conversación por usuario
 user_threads = {}

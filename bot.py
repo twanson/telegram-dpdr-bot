@@ -126,13 +126,13 @@ def can_send_message(user_id: int) -> bool:
 # Inicializar la base de datos después de verificar
 db = Database(MONGODB_URI)
 
-async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja errores del bot."""
     logging.error(f"Exception while handling an update: {context.error}")
 
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def start_command(update: Update, context):
     """Se ejecuta cuando el usuario usa /start"""
-    await update.message.reply_text(
+    update.message.reply_text(
         "¡Hola! Soy un asistente especializado en los síntomas de la ansiedad DPDR (despersonalización y desrealización). "
         "Puedo ayudarte con información y consejos basados en guías y recursos especializados.\n\n"
         "📌 Comandos disponibles:\n"
@@ -143,7 +143,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "¿En qué puedo ayudarte?"
     )
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def handle_message(update: Update, context):
     """ Maneja cualquier mensaje de texto del usuario """
     user_id = update.effective_user.id
     user_text = update.message.text.lower()
@@ -162,7 +162,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Verificar límites de uso
     if not can_send_message(user_id):
-        await update.message.reply_text(
+        update.message.reply_text(
             "Has alcanzado tu límite diario de mensajes. 🚫\n"
             "Usa /plan para ver los planes disponibles y sus límites."
         )
@@ -178,9 +178,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Verificamos si es un feedback o un mensaje de sistema
     if user_text in ["👍 útil", "👎 no útil", "❓ nueva pregunta"]:
         if user_text == "👍 útil":
-            await update.message.reply_text("¡Gracias por tu feedback positivo!")
+            update.message.reply_text("¡Gracias por tu feedback positivo!")
         elif user_text == "👎 no útil":
-            await update.message.reply_text("Gracias por tu feedback. ¿Podrías decirme cómo puedo mejorar?")
+            update.message.reply_text("Gracias por tu feedback. ¿Podrías decirme cómo puedo mejorar?")
         return
     
     # Si es un mensaje de cortesía, no procesamos ni pedimos feedback
@@ -236,17 +236,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             content=user_text
         )
 
-        # Ejecutar el asistente
-        run = client.beta.threads.runs.create(
-            thread_id=thread.id,
-            assistant_id=ASSISTANT_ID,
-            model="gpt-4-turbo-preview",
-            temperature=0.7,
-            instructions=instructions
-        )
-
-        # Informar al usuario que estamos procesando
-        await update.message.reply_text("Procesando tu pregunta, por favor espera...")
+        # Cambiar todos los await por llamadas directas
+        update.message.reply_text("Procesando tu pregunta, por favor espera...")
 
         # Esperar a que el asistente complete la respuesta con timeout
         start_time = time.time()
@@ -288,20 +279,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             del user_threads[user_id]
 
     # Respondemos al usuario con el texto del asistente
-    await update.message.reply_text(assistant_response)
+    update.message.reply_text(assistant_response)
     
     # Solo añadimos feedback para respuestas sustanciales (no para mensajes de sistema)
     if not any(keyword in user_text for keyword in ["útil", "gracias", "ok", "vale"]):
         keyboard = [["👍 Útil", "👎 No útil", "❓ Nueva pregunta"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text(
+        update.message.reply_text(
             "¿Te ha resultado útil esta respuesta?",
             reply_markup=reply_markup
         )
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def help_command(update: Update, context):
     """Muestra la ayuda del bot"""
-    await update.message.reply_text(
+    update.message.reply_text(
         "Comandos disponibles:\n"
         "/start - Inicia el bot\n"
         "/help - Muestra esta ayuda\n"
@@ -309,16 +300,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "\nPuedes preguntarme cualquier cosa sobre DPDR y despersonalización."
     )
 
-async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Reinicia la conversación del usuario"""
     user_id = update.effective_user.id
     if user_id in user_threads:
         del user_threads[user_id]
-    await update.message.reply_text(
+    update.message.reply_text(
         "He reiniciado tu conversación. Puedes empezar de nuevo."
     )
 
-async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra categorías de preguntas frecuentes"""
     keyboard = [
         ["Entender DPDR", "Síntomas"],
@@ -326,7 +317,7 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["Ayuda a Entenderme", "Recursos"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    await update.message.reply_text(
+    update.message.reply_text(
         "Selecciona una categoría:\n\n"
         "💡 'Entender DPDR' te da una visión general del trastorno.\n"
         "❤️ 'Ayuda a Entenderme' está pensado para compartir con familiares y "
@@ -334,16 +325,16 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Permite al usuario dar retroalimentación"""
     keyboard = [["👍 Útil", "👎 No útil"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    await update.message.reply_text(
+    update.message.reply_text(
         "¿Te fue útil mi última respuesta?",
         reply_markup=reply_markup
     )
 
-async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra opciones para actualizar el plan"""
     keyboard = [
         ["💎 Plan Basic - 2.99€/mes"],
@@ -351,7 +342,7 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["❌ Cancelar"]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    await update.message.reply_text(
+    update.message.reply_text(
         "Selecciona el plan al que quieres actualizar:\n\n"
         "💎 Plan Basic (2.99€/mes):\n"
         "- 10 mensajes/día\n"
@@ -362,7 +353,7 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el plan actual y los planes disponibles"""
     user_id = update.effective_user.id
     usage = get_user_usage(user_id)
@@ -393,31 +384,34 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if plan_type == "FREE":
         message += "\n🌟 Usa /upgrade para mejorar tu plan"
     
-    await update.message.reply_text(message)
+    update.message.reply_text(message)
 
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
     
     try:
-        # Crear la aplicación de manera más simple
-        application = ApplicationBuilder().token(BOT_TOKEN).build()
-        
-        # Registramos los handlers
-        application.add_handler(CommandHandler("start", start_command))
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("reset", reset_command))
-        application.add_handler(CommandHandler("faq", faq_command))
-        application.add_handler(CommandHandler("feedback", feedback_command))
-        application.add_handler(CommandHandler("plan", plan_command))
-        application.add_handler(CommandHandler("upgrade", upgrade_command))
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-        application.add_error_handler(error_handler)
+        # Configuración básica del bot
+        from telegram.ext import Updater
+        updater = Updater(token=BOT_TOKEN, use_context=True)
+        dispatcher = updater.dispatcher
+
+        # Registrar handlers
+        dispatcher.add_handler(CommandHandler("start", start_command))
+        dispatcher.add_handler(CommandHandler("help", help_command))
+        dispatcher.add_handler(CommandHandler("reset", reset_command))
+        dispatcher.add_handler(CommandHandler("faq", faq_command))
+        dispatcher.add_handler(CommandHandler("feedback", feedback_command))
+        dispatcher.add_handler(CommandHandler("plan", plan_command))
+        dispatcher.add_handler(CommandHandler("upgrade", upgrade_command))
+        dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        dispatcher.add_error_handler(error_handler)
 
         logging.info("Bot initialized successfully")
         
-        # Iniciar el bot de manera más simple
-        application.run_polling()
+        # Iniciar el bot
+        updater.start_polling()
+        updater.idle()
         
     except Exception as e:
         logging.error(f"Critical error: {str(e)}")

@@ -34,15 +34,20 @@ ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
-    api_key=OPENAI_API_KEY
+    api_key=OPENAI_API_KEY,
+    base_url="https://api.openai.com/v1"
 )
+
+# Configuramos los headers para la API v2
+OPENAI_HEADERS = {
+    "OpenAI-Beta": "assistants=v2",
+    "Content-Type": "application/json"
+}
 
 # Configuramos el cliente HTTP personalizado
 http_client = httpx.Client(
-    base_url="https://api.openai.com/v1",
-    headers={
-        "OpenAI-Beta": "assistants=v2"
-    }
+    headers=OPENAI_HEADERS,
+    timeout=60.0
 )
 
 # Asignamos el cliente HTTP personalizado
@@ -72,6 +77,11 @@ SUBSCRIPTION_PLANS = {
         "price": 6.99
     }
 }
+
+# Lista de IDs de administradores
+ADMIN_IDS = [
+    23684095  # Admin principal
+]
 
 # Estructura para rastrear el uso diario
 class UserUsage:
@@ -104,6 +114,10 @@ def get_user_plan(user_id: int) -> str:
 
 def can_send_message(user_id: int) -> bool:
     """Verifica si el usuario puede enviar más mensajes hoy"""
+    # Los administradores no tienen límite
+    if user_id in ADMIN_IDS:
+        return True
+        
     usage = get_user_usage(user_id)
     plan_type = get_user_plan(user_id)
     plan = SUBSCRIPTION_PLANS[plan_type]
@@ -221,8 +235,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=ASSISTANT_ID,
-            model="gpt-4-turbo-preview",  # Modelo más eficiente
-            temperature=0.7,  # Más enfocado
+            model="gpt-4-turbo-preview",
+            temperature=0.7,
             instructions=instructions
         )
 
@@ -251,7 +265,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             raise TimeoutError("El asistente tardó demasiado en responder")
 
         # Obtener los mensajes del hilo
-        messages = client.beta.threads.messages.list(thread_id=thread.id)
+        messages = client.beta.threads.messages.list(
+            thread_id=thread.id
+        )
         
         # Obtener la última respuesta del asistente
         assistant_response = messages.data[0].content[0].text.value

@@ -32,12 +32,9 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-# Inicializamos el cliente de OpenAI con la configuración correcta
+# Inicializamos el cliente de OpenAI
 client = OpenAI(
-    api_key=OPENAI_API_KEY,
-    default_headers={
-        "OpenAI-Beta": "assistants=v2"
-    }
+    api_key=OPENAI_API_KEY
 )
 
 # Diccionario para almacenar los hilos de conversación por usuario

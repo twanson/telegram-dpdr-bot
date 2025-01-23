@@ -15,6 +15,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import httpx
 from datetime import datetime, date
+from models import Database
 
 # Configurar logging más detallado
 logging.basicConfig(
@@ -117,6 +118,10 @@ def verify_env_variables():
         else:
             logging.info(f"Found environment variable: {var}")
 
+# Después de cargar las variables de entorno
+MONGODB_URI = os.getenv('MONGODB_URI')
+db = Database(MONGODB_URI)
+
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja errores del bot."""
     logging.error(f"Exception while handling an update: {context.error}")
@@ -137,7 +142,19 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Maneja cualquier mensaje de texto del usuario """
     user_id = update.effective_user.id
-    user_text = update.message.text.lower()  # Convertimos a minúsculas
+    user_text = update.message.text.lower()
+
+    # Obtener o crear usuario en la base de datos
+    user = db.get_user(user_id)
+    if not user:
+        db.update_user(user_id, {
+            "user_id": user_id,
+            "plan": "FREE",
+            "created_at": datetime.now()
+        })
+
+    # Actualizar estadísticas de uso
+    db.update_usage(user_id)
 
     # Verificar límites de uso
     if not can_send_message(user_id):
@@ -255,6 +272,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Obtener la última respuesta del asistente
         assistant_response = messages.data[0].content[0].text.value
+
+        # Guardar la conversación
+        db.log_conversation(user_id, user_text, assistant_response)
 
     except Exception as e:
         logging.error(f"Error processing message: {str(e)}")

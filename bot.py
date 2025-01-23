@@ -8,9 +8,9 @@ from telegram.ext import (
     Updater,  # Añadimos Updater
     CommandHandler, 
     MessageHandler, 
-    Filters,  # Cambiamos filters por Filters (mayúscula)
-    CallbackContext  # Añadimos CallbackContext
+    CallbackContext
 )
+from telegram.ext.filters import Filters  # Cambiamos la ubicación del import
 from openai import OpenAI
 from dotenv import load_dotenv
 import httpx

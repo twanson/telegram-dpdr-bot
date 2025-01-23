@@ -5,11 +5,11 @@ import time
 import sys
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, 
+    Updater,  # Añadimos Updater
     CommandHandler, 
     MessageHandler, 
-    filters,
-    ContextTypes
+    Filters,  # Cambiamos filters por Filters (mayúscula)
+    CallbackContext  # Añadimos CallbackContext
 )
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -126,7 +126,7 @@ def can_send_message(user_id: int) -> bool:
 # Inicializar la base de datos después de verificar
 db = Database(MONGODB_URI)
 
-def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+def error_handler(update: object, context: CallbackContext) -> None:
     """Maneja errores del bot."""
     logging.error(f"Exception while handling an update: {context.error}")
 
@@ -300,7 +300,7 @@ def help_command(update: Update, context):
         "\nPuedes preguntarme cualquier cosa sobre DPDR y despersonalización."
     )
 
-def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def reset_command(update: Update, context: CallbackContext):
     """Reinicia la conversación del usuario"""
     user_id = update.effective_user.id
     if user_id in user_threads:
@@ -309,7 +309,7 @@ def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "He reiniciado tu conversación. Puedes empezar de nuevo."
     )
 
-def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def faq_command(update: Update, context: CallbackContext):
     """Muestra categorías de preguntas frecuentes"""
     keyboard = [
         ["Entender DPDR", "Síntomas"],
@@ -325,7 +325,7 @@ def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def feedback_command(update: Update, context: CallbackContext):
     """Permite al usuario dar retroalimentación"""
     keyboard = [["👍 Útil", "👎 No útil"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
@@ -334,7 +334,7 @@ def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def upgrade_command(update: Update, context: CallbackContext):
     """Muestra opciones para actualizar el plan"""
     keyboard = [
         ["💎 Plan Basic - 2.99€/mes"],
@@ -353,7 +353,7 @@ def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def plan_command(update: Update, context: CallbackContext):
     """Muestra el plan actual y los planes disponibles"""
     user_id = update.effective_user.id
     usage = get_user_usage(user_id)
@@ -391,9 +391,8 @@ def main():
     verify_env_variables()
     
     try:
-        # Configuración básica del bot
         from telegram.ext import Updater
-        updater = Updater(token=BOT_TOKEN, use_context=True)
+        updater = Updater(BOT_TOKEN)  # Solo pasamos el token directamente
         dispatcher = updater.dispatcher
 
         # Registrar handlers
@@ -404,7 +403,7 @@ def main():
         dispatcher.add_handler(CommandHandler("feedback", feedback_command))
         dispatcher.add_handler(CommandHandler("plan", plan_command))
         dispatcher.add_handler(CommandHandler("upgrade", upgrade_command))
-        dispatcher.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
         dispatcher.add_error_handler(error_handler)
 
         logging.info("Bot initialized successfully")

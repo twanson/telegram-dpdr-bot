@@ -32,21 +32,15 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-# Inicializamos el cliente de OpenAI con la configuración correcta
-client = OpenAI()
-
-# Configuramos el cliente HTTP personalizado
-http_client = httpx.Client(
+# Inicializamos el cliente de OpenAI
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
     base_url="https://api.openai.com/v1",
-    headers={
+    default_headers={
         "OpenAI-Beta": "assistants=v2",
-        "Authorization": f"Bearer {OPENAI_API_KEY}"
-    },
-    timeout=60.0
+        "OpenAI-Version": "2024-02-15"
+    }
 )
-
-# Asignamos el cliente HTTP personalizado
-client.http_client = http_client
 
 # Diccionario para almacenar los hilos de conversación por usuario
 user_threads = {}

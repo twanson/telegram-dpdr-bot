@@ -11,7 +11,7 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
-from openai import OpenAI, AzureOpenAI
+from openai import OpenAI
 from dotenv import load_dotenv
 import httpx
 from datetime import datetime, date
@@ -32,21 +32,16 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-# Inicializamos el cliente de OpenAI
-client = OpenAI(
-    api_key=OPENAI_API_KEY,
-    base_url="https://api.openai.com/v1"
-)
-
-# Configuramos los headers para la API v2
-OPENAI_HEADERS = {
-    "OpenAI-Beta": "assistants=v2",
-    "Content-Type": "application/json"
-}
+# Inicializamos el cliente de OpenAI con la configuración correcta
+client = OpenAI()
 
 # Configuramos el cliente HTTP personalizado
 http_client = httpx.Client(
-    headers=OPENAI_HEADERS,
+    base_url="https://api.openai.com/v1",
+    headers={
+        "OpenAI-Beta": "assistants=v2",
+        "Authorization": f"Bearer {OPENAI_API_KEY}"
+    },
     timeout=60.0
 )
 

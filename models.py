@@ -41,4 +41,4 @@ class Database:
                 "$inc": {"message_count": 1}
             },
             upsert=True
-        ) 
+        ) # Forzar reinicio para MongoDB

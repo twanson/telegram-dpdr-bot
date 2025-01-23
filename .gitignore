@@ -1,3 +1,18 @@
-.env
+# Archivos de sistema
+.DS_Store
 __pycache__/
-*.pyc .DS_Store
+
+# Entorno virtual
+venv/
+env/
+
+# Variables de entorno
+.env
+
+# Logs y backups
+*.log
+backup/
+
+# IDE
+.vscode/
+.idea/

@@ -32,15 +32,13 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
-# Inicializamos el cliente de OpenAI
+# Inicializamos el cliente de OpenAI con la configuración correcta
 client = OpenAI(
-    api_key=OPENAI_API_KEY
+    api_key=OPENAI_API_KEY,
+    default_headers={
+        "OpenAI-Beta": "assistants=v2"
+    }
 )
-
-# Headers para la API v2
-V2_HEADERS = {
-    "OpenAI-Beta": "assistants=v2"
-}
 
 # Diccionario para almacenar los hilos de conversación por usuario
 user_threads = {}
@@ -174,9 +172,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Crear o recuperar el hilo de conversación del usuario
         if user_id not in user_threads:
-            user_threads[user_id] = client.beta.threads.create(
-                headers=V2_HEADERS
-            )
+            user_threads[user_id] = client.beta.threads.create()  # Sin headers aquí
         
         thread = user_threads[user_id]
 
@@ -219,8 +215,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=user_text,
-            headers=V2_HEADERS
+            content=user_text  # Sin headers aquí
         )
 
         # Ejecutar el asistente
@@ -229,8 +224,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             assistant_id=ASSISTANT_ID,
             model="gpt-4-turbo-preview",
             temperature=0.7,
-            instructions=instructions,
-            headers=V2_HEADERS
+            instructions=instructions  # Sin headers aquí
         )
 
         # Informar al usuario que estamos procesando
@@ -259,8 +253,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Obtener los mensajes del hilo
         messages = client.beta.threads.messages.list(
-            thread_id=thread.id,
-            headers=V2_HEADERS
+            thread_id=thread.id  # Sin headers aquí
         )
         
         # Obtener la última respuesta del asistente

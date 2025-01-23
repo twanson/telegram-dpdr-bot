@@ -37,8 +37,7 @@ client = OpenAI(
     api_key=OPENAI_API_KEY,
     base_url="https://api.openai.com/v1",
     default_headers={
-        "OpenAI-Beta": "assistants=v2",
-        "OpenAI-Version": "2024-02-15"
+        "OpenAI-Beta": "assistants=v2"
     }
 )
 

@@ -34,16 +34,14 @@ ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
-    api_key=OPENAI_API_KEY,
-    base_url="https://api.openai.com/v1",
-    api_version="2024-02-15"  # Especificamos la versión de la API
+    api_key=OPENAI_API_KEY
 )
 
 # Configuramos el cliente HTTP personalizado
 http_client = httpx.Client(
+    base_url="https://api.openai.com/v1",
     headers={
-        "OpenAI-Beta": "assistants=v2",
-        "OpenAI-Version": "2024-02-15"
+        "OpenAI-Beta": "assistants=v2"
     }
 )
 

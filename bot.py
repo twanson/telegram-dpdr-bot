@@ -167,7 +167,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Crear o recuperar el hilo de conversación del usuario
         if user_id not in user_threads:
-            user_threads[user_id] = client.beta.threads.create()  # Sin headers aquí
+            user_threads[user_id] = client.beta.threads.create()
         
         thread = user_threads[user_id]
 
@@ -210,7 +210,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         message = client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=user_text  # Sin headers aquí
+            content=user_text
         )
 
         # Ejecutar el asistente
@@ -219,7 +219,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             assistant_id=ASSISTANT_ID,
             model="gpt-4-turbo-preview",
             temperature=0.7,
-            instructions=instructions  # Sin headers aquí
+            instructions=instructions
         )
 
         # Informar al usuario que estamos procesando
@@ -248,7 +248,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Obtener los mensajes del hilo
         messages = client.beta.threads.messages.list(
-            thread_id=thread.id  # Sin headers aquí
+            thread_id=thread.id
         )
         
         # Obtener la última respuesta del asistente

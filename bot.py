@@ -26,12 +26,27 @@ logging.basicConfig(
 
 # Reemplaza con tu token de bot de Telegram
 load_dotenv()
-BOT_TOKEN = os.getenv('BOT_TOKEN')
 
-# Configuración de OpenAI
+# Verificar todas las variables antes de usarlas
+def verify_env_variables():
+    required_vars = ['BOT_TOKEN', 'OPENAI_API_KEY', 'ASSISTANT_ID', 'MONGODB_URI']
+    for var in required_vars:
+        value = os.getenv(var)
+        if not value:
+            logging.error(f"Missing environment variable: {var}")
+            sys.exit(1)
+        logging.info(f"Found environment variable: {var}")
+        if var == 'MONGODB_URI':
+            logging.info(f"MongoDB URI found: {value[:20]}...")
+
+# Llamar a verify_env_variables antes de cualquier otra inicialización
+verify_env_variables()
+
+# Luego inicializar las variables
+BOT_TOKEN = os.getenv('BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-# ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
+MONGODB_URI = os.getenv('MONGODB_URI')
 
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
@@ -108,18 +123,7 @@ def can_send_message(user_id: int) -> bool:
     plan = SUBSCRIPTION_PLANS[plan_type]
     return usage.message_count < plan["daily_messages"]
 
-# Añadir verificación de variables de entorno
-def verify_env_variables():
-    required_vars = ['BOT_TOKEN', 'OPENAI_API_KEY', 'ASSISTANT_ID']
-    for var in required_vars:
-        if not os.getenv(var):
-            logging.error(f"Missing environment variable: {var}")
-            sys.exit(1)
-        else:
-            logging.info(f"Found environment variable: {var}")
-
-# Después de cargar las variables de entorno
-MONGODB_URI = os.getenv('MONGODB_URI')
+# Inicializar la base de datos después de verificar
 db = Database(MONGODB_URI)
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -396,16 +400,9 @@ def main():
     verify_env_variables()
     
     try:
-        application = (
-            ApplicationBuilder()
-            .token(BOT_TOKEN)
-            .concurrent_updates(False)  # Cambiado a False
-            .build()
-        )
+        # Crear la aplicación de manera más simple
+        application = ApplicationBuilder().token(BOT_TOKEN).build()
         
-        # Registramos el manejador de errores
-        application.add_error_handler(error_handler)
-
         # Registramos los handlers
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("help", help_command))
@@ -414,17 +411,14 @@ def main():
         application.add_handler(CommandHandler("feedback", feedback_command))
         application.add_handler(CommandHandler("plan", plan_command))
         application.add_handler(CommandHandler("upgrade", upgrade_command))
-        
-        # Handler para mensajes de texto
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_error_handler(error_handler)
 
         logging.info("Bot initialized successfully")
-        application.run_polling(
-            drop_pending_updates=True,
-            allowed_updates=["message", "callback_query"],  # Específico
-            stop_signals=None,
-            close_loop=False
-        )
+        
+        # Iniciar el bot de manera más simple
+        application.run_polling()
+        
     except Exception as e:
         logging.error(f"Critical error: {str(e)}")
         sys.exit(1)

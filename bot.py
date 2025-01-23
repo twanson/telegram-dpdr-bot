@@ -14,6 +14,7 @@ from telegram.ext import (
 from openai import OpenAI, AzureOpenAI
 from dotenv import load_dotenv
 import httpx
+from datetime import datetime, date
 
 # Configurar logging más detallado
 logging.basicConfig(
@@ -47,6 +48,64 @@ client._client = http_client
 # Diccionario para almacenar los hilos de conversación por usuario
 user_threads = {}
 
+# Definición de planes
+SUBSCRIPTION_PLANS = {
+    "FREE": {
+        "name": "Plan básico gratuito",
+        "daily_messages": 3,
+        "tokens_per_day": 2000,
+        "price": 0
+    },
+    "BASIC": {
+        "name": "Plan básico",
+        "daily_messages": 10,
+        "tokens_per_day": 5000,
+        "price": 2.99
+    },
+    "PREMIUM": {
+        "name": "Plan premium",
+        "daily_messages": 20,
+        "tokens_per_day": 10000,
+        "price": 6.99
+    }
+}
+
+# Estructura para rastrear el uso diario
+class UserUsage:
+    def __init__(self):
+        self.date = date.today()
+        self.message_count = 0
+        self.token_count = 0
+
+# Diccionario para almacenar el uso diario por usuario
+user_usage = {}
+
+# Estructura para almacenar los planes de los usuarios
+user_plans = {}  # user_id -> {"plan": "FREE", "expiry": datetime}
+
+def get_user_usage(user_id: int) -> UserUsage:
+    """Obtiene o crea el registro de uso del usuario para el día actual"""
+    today = date.today()
+    
+    # Si no existe el usuario o es un día nuevo, crear nuevo registro
+    if user_id not in user_usage or user_usage[user_id].date != today:
+        user_usage[user_id] = UserUsage()
+    
+    return user_usage[user_id]
+
+def get_user_plan(user_id: int) -> str:
+    """Obtiene el plan actual del usuario"""
+    if user_id not in user_plans or user_plans[user_id]["expiry"] < datetime.now():
+        return "FREE"
+    return user_plans[user_id]["plan"]
+
+def can_send_message(user_id: int) -> bool:
+    """Verifica si el usuario puede enviar más mensajes hoy"""
+    usage = get_user_usage(user_id)
+    plan_type = get_user_plan(user_id)
+    plan = SUBSCRIPTION_PLANS[plan_type]
+    return usage.message_count < plan["daily_messages"]
+
 # Añadir verificación de variables de entorno
 def verify_env_variables():
     required_vars = ['BOT_TOKEN', 'OPENAI_API_KEY', 'ASSISTANT_ID']
@@ -69,6 +128,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "📌 Comandos disponibles:\n"
         "/faq - Ver categorías principales\n"
         "/help - Ver todos los comandos\n"
+        "/plan - Ver tu plan actual y límites\n"
         "/reset - Reiniciar conversación\n\n"
         "¿En qué puedo ayudarte?"
     )
@@ -77,6 +137,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Maneja cualquier mensaje de texto del usuario """
     user_id = update.effective_user.id
     user_text = update.message.text.lower()  # Convertimos a minúsculas
+
+    # Verificar límites de uso
+    if not can_send_message(user_id):
+        await update.message.reply_text(
+            "Has alcanzado tu límite diario de mensajes. 🚫\n"
+            "Usa /plan para ver los planes disponibles y sus límites."
+        )
+        return
+
+    # Actualizar contador de mensajes
+    usage = get_user_usage(user_id)
+    usage.message_count += 1
 
     # Lista de respuestas de cortesía que no requieren procesamiento
     cortesia = ["de nada", "gracias", "ok", "vale", "👍", "👎"]
@@ -244,6 +316,58 @@ async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
+async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra opciones para actualizar el plan"""
+    keyboard = [
+        ["💎 Plan Basic - 2.99€/mes"],
+        ["👑 Plan Premium - 6.99€/mes"],
+        ["❌ Cancelar"]
+    ]
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+    await update.message.reply_text(
+        "Selecciona el plan al que quieres actualizar:\n\n"
+        "💎 Plan Basic (2.99€/mes):\n"
+        "- 10 mensajes/día\n"
+        "- 5000 tokens/día\n\n"
+        "👑 Plan Premium (6.99€/mes):\n"
+        "- 20 mensajes/día\n"
+        "- 10000 tokens/día",
+        reply_markup=reply_markup
+    )
+
+async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el plan actual y los planes disponibles"""
+    user_id = update.effective_user.id
+    usage = get_user_usage(user_id)
+    plan_type = get_user_plan(user_id)
+    current_plan = SUBSCRIPTION_PLANS[plan_type]
+    
+    message = f"📊 Tu plan actual: {current_plan['name']}\n"
+    message += f"📝 Mensajes usados hoy: {usage.message_count}/{current_plan['daily_messages']}\n"
+    message += f"🔢 Tokens disponibles por día: {current_plan['tokens_per_day']}\n"
+    
+    if plan_type != "FREE":
+        expiry = user_plans[user_id]["expiry"]
+        message += f"📅 Tu suscripción vence el: {expiry.strftime('%d/%m/%Y')}\n"
+    
+    message += "\n💡 Planes disponibles:\n\n"
+    message += "FREE:\n"
+    message += "- Plan básico gratuito\n"
+    message += "- 3 mensajes/día\n\n"
+    message += "BASIC:\n"
+    message += "- Para uso regular\n"
+    message += "- 10 mensajes/día\n"
+    message += "- Precio: 2.99€/mes\n\n"
+    message += "PREMIUM:\n"
+    message += "- Para uso intensivo\n"
+    message += "- 20 mensajes/día\n"
+    message += "- Precio: 6.99€/mes\n\n"
+    
+    if plan_type == "FREE":
+        message += "\n🌟 Usa /upgrade para mejorar tu plan"
+    
+    await update.message.reply_text(message)
+
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
@@ -265,6 +389,8 @@ def main():
         application.add_handler(CommandHandler("reset", reset_command))
         application.add_handler(CommandHandler("faq", faq_command))
         application.add_handler(CommandHandler("feedback", feedback_command))
+        application.add_handler(CommandHandler("plan", plan_command))
+        application.add_handler(CommandHandler("upgrade", upgrade_command))
         
         # Handler para mensajes de texto
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))

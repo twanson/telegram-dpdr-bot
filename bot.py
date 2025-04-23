@@ -3,6 +3,7 @@ import os
 import logging
 import time
 import sys
+import sqlite3 # <-- Añadir importación
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, 
@@ -14,7 +15,7 @@ from telegram.ext import (
 from openai import OpenAI
 from dotenv import load_dotenv
 import httpx
-from datetime import datetime, date
+from datetime import datetime, date, timedelta # <-- Añadir timedelta
 
 # Configurar logging más detallado
 logging.basicConfig(
@@ -31,6 +32,9 @@ BOT_TOKEN = os.getenv('BOT_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # ID del asistente
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
+
+# Configuración de la base de datos SQLite <-- NUEVO
+DB_PATH = 'dpdr_bot.db'
 
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
@@ -67,52 +71,128 @@ ADMIN_IDS = [
     23684095  # Admin principal
 ]
 
-# Estructura para rastrear el uso diario
-class UserUsage:
-    def __init__(self):
-        self.date = date.today()
-        self.message_count = 0
-        self.token_count = 0
+# --- Funciones de Base de Datos SQLite --- <-- NUEVO
+def init_db():
+    """Inicializa la base de datos SQLite si no existe."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        # Crear tabla de usuarios si no existe
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                plan TEXT DEFAULT 'FREE',
+                expiry_date TEXT,
+                message_count INTEGER DEFAULT 0,
+                token_count INTEGER DEFAULT 0,
+                last_reset_date TEXT
+            )
+        ''')
+        # Crear tabla de feedback si no existe
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                message TEXT,
+                rating TEXT,
+                timestamp TEXT
+            )
+        ''')
+        conn.commit()
+        logging.info("✅ Base de datos SQLite inicializada/verificada.")
+    except sqlite3.Error as e:
+        logging.error(f"❌ Error inicializando SQLite: {str(e)}")
+        raise
+    finally:
+        if conn:
+            conn.close()
 
-# Diccionario para almacenar el uso diario por usuario
-user_usage = {}
+def add_user(user_id: int):
+    """Añade un usuario nuevo a la base de datos si no existe."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("INSERT OR IGNORE INTO users (user_id, last_reset_date) VALUES (?, ?)",
+                  (user_id, date.today().isoformat()))
+        conn.commit()
+        logging.info(f"Usuario {user_id} añadido o ya existente.")
+    except sqlite3.Error as e:
+        logging.error(f"Error añadiendo usuario {user_id}: {e}")
+    finally:
+        conn.close()
 
-# Estructura para almacenar los planes de los usuarios
-user_plans = {}  # user_id -> {"plan": "FREE", "expiry": datetime}
+def get_user(user_id: int):
+    """Obtiene los datos del usuario de la base de datos."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
+    c = conn.cursor()
+    try:
+        c.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user_data = c.fetchone()
+        if user_data:
+            # Verificar si la fecha de último reseteo es de ayer o antes
+            today = date.today()
+            last_reset = date.fromisoformat(user_data['last_reset_date'])
+            if last_reset < today:
+                # Resetear contadores
+                c.execute("UPDATE users SET message_count = 0, token_count = 0, last_reset_date = ? WHERE user_id = ?",
+                          (today.isoformat(), user_id))
+                conn.commit()
+                # Volver a obtener los datos actualizados
+                c.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+                user_data = c.fetchone()
+        return user_data # Devuelve None si no se encuentra
+    except sqlite3.Error as e:
+        logging.error(f"Error obteniendo usuario {user_id}: {e}")
+        return None
+    finally:
+        conn.close()
 
-def get_user_usage(user_id: int) -> UserUsage:
-    """Obtiene o crea el registro de uso del usuario para el día actual"""
-    today = date.today()
-    
-    # Si no existe el usuario o es un día nuevo, crear nuevo registro
-    if user_id not in user_usage or user_usage[user_id].date != today:
-        user_usage[user_id] = UserUsage()
-    
-    return user_usage[user_id]
+def update_user_usage(user_id: int, message_increment: int = 1, token_increment: int = 0):
+    """Actualiza el uso del usuario en la base de datos."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute('''
+            UPDATE users
+            SET message_count = message_count + ?,
+                token_count = token_count + ?
+            WHERE user_id = ?
+        ''', (message_increment, token_increment, user_id))
+        conn.commit()
+    except sqlite3.Error as e:
+        logging.error(f"Error actualizando uso para usuario {user_id}: {e}")
+    finally:
+        conn.close()
 
-def get_user_plan(user_id: int) -> str:
-    """Obtiene el plan actual del usuario"""
-    if user_id not in user_plans or user_plans[user_id]["expiry"] < datetime.now():
-        return "FREE"
-    return user_plans[user_id]["plan"]
-
-def can_send_message(user_id: int) -> bool:
-    """Verifica si el usuario puede enviar más mensajes hoy"""
-    # Los administradores no tienen límite
-    if user_id in ADMIN_IDS:
-        return True
-        
-    usage = get_user_usage(user_id)
-    plan_type = get_user_plan(user_id)
-    plan = SUBSCRIPTION_PLANS[plan_type]
-    return usage.message_count < plan["daily_messages"]
+def add_feedback(user_id: int, message: str, rating: str):
+    """Guarda el feedback del usuario en la base de datos."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        timestamp = datetime.now().isoformat()
+        c.execute("INSERT INTO feedback (user_id, message, rating, timestamp) VALUES (?, ?, ?, ?)",
+                  (user_id, message, rating, timestamp))
+        conn.commit()
+        logging.info(f"Feedback guardado para usuario {user_id}: {rating}")
+    except sqlite3.Error as e:
+        logging.error(f"Error guardando feedback para usuario {user_id}: {e}")
+    finally:
+        conn.close()
+    # --- Fin Funciones de Base de Datos ---
 
 # Añadir verificación de variables de entorno
 def verify_env_variables():
-    required_vars = ['BOT_TOKEN', 'OPENAI_API_KEY', 'ASSISTANT_ID']
-    for var in required_vars:
+    """Verifica que todas las variables de entorno necesarias estén presentes"""
+    # Eliminamos la verificación de MONGO_URI
+    required_vars = {
+        'BOT_TOKEN': 'Token del bot de Telegram',
+        'OPENAI_API_KEY': 'API key de OpenAI',
+        'ASSISTANT_ID': 'ID del asistente de OpenAI'
+    }
+    for var, description in required_vars.items():
         if not os.getenv(var):
-            logging.error(f"Missing environment variable: {var}")
+            logging.error(f"Missing environment variable: {var} - {description}")
             sys.exit(1)
         else:
             logging.info(f"Found environment variable: {var}")
@@ -123,6 +203,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Se ejecuta cuando el usuario usa /start"""
+    user_id = update.effective_user.id
+    add_user(user_id) # <-- Añadir usuario a la BD al iniciar
     await update.message.reply_text(
         "¡Hola! Soy un asistente especializado en los síntomas de la ansiedad DPDR (despersonalización y desrealización). "
         "Puedo ayudarte con información y consejos basados en guías y recursos especializados.\n\n"
@@ -137,34 +219,69 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Maneja cualquier mensaje de texto del usuario """
     user_id = update.effective_user.id
-    user_text = update.message.text.lower()  # Convertimos a minúsculas
+    user_text = update.message.text # Ya no lo ponemos en minúsculas aquí
 
-    # Verificar límites de uso
-    if not can_send_message(user_id):
+    # --- Lógica de Límites con SQLite --- <-- MODIFICADO
+    user_data = get_user(user_id)
+    if not user_data:
+         # Si por alguna razón el usuario no está en la BD (aunque start debería añadirlo)
+        add_user(user_id)
+        user_data = get_user(user_id)
+        if not user_data: # Si sigue sin funcionar, hay un problema grave
+             await update.message.reply_text("Error al procesar tu solicitud. Por favor, intenta usar /start de nuevo.")
+             logging.error(f"No se pudo obtener/crear el usuario {user_id} en la BD.")
+             return
+
+    current_plan_type = user_data['plan'] if user_data else 'FREE'
+    # Manejo de expiración de plan (si se implementa)
+    if user_data and user_data['expiry_date']:
+        expiry = datetime.fromisoformat(user_data['expiry_date'])
+        if expiry < datetime.now():
+            current_plan_type = 'FREE'
+            # Podrías actualizar el plan a FREE en la BD aquí si es necesario
+
+    plan_limits = SUBSCRIPTION_PLANS[current_plan_type]
+    message_count = user_data['message_count'] if user_data else 0
+
+    # Verificar límites (excepto admins)
+    is_admin = user_id in ADMIN_IDS
+    if not is_admin and message_count >= plan_limits['daily_messages']:
         await update.message.reply_text(
             "Has alcanzado tu límite diario de mensajes. 🚫\n"
-            "Usa /plan para ver los planes disponibles y sus límites."
+            f"Tu plan '{plan_limits['name']}' permite {plan_limits['daily_messages']} mensajes al día.\n"
+            "Usa /plan para ver los planes disponibles."
         )
         return
-
-    # Actualizar contador de mensajes
-    usage = get_user_usage(user_id)
-    usage.message_count += 1
+    # --- Fin Lógica de Límites ---
 
     # Lista de respuestas de cortesía que no requieren procesamiento
     cortesia = ["de nada", "gracias", "ok", "vale", "👍", "👎"]
-    
+    user_text_lower = user_text.lower() # Lo ponemos en minúsculas ahora
+
     # Verificamos si es un feedback o un mensaje de sistema
-    if user_text in ["👍 útil", "👎 no útil", "❓ nueva pregunta"]:
-        if user_text == "👍 útil":
-            await update.message.reply_text("¡Gracias por tu feedback positivo!")
-        elif user_text == "👎 no útil":
-            await update.message.reply_text("Gracias por tu feedback. ¿Podrías decirme cómo puedo mejorar?")
-        return
-    
+    if user_text_lower in ["�� útil", "👎 no útil", "❓ nueva pregunta"]:
+        if context.user_data.get('last_assistant_message'):
+            last_message = context.user_data['last_assistant_message']
+            if user_text_lower == "👍 útil":
+                add_feedback(user_id, last_message, 'positive')
+                await update.message.reply_text("¡Gracias por tu feedback positivo!")
+            elif user_text_lower == "👎 no útil":
+                add_feedback(user_id, last_message, 'negative')
+                await update.message.reply_text("Gracias por tu feedback. Lo tendremos en cuenta para mejorar.")
+            # Limpiamos el mensaje guardado
+            del context.user_data['last_assistant_message']
+        else:
+             await update.message.reply_text("Gracias por tu feedback.")
+        return # No procesamos estos mensajes con OpenAI
+
     # Si es un mensaje de cortesía, no procesamos ni pedimos feedback
-    if user_text in cortesia:
+    if user_text_lower in cortesia:
+        await update.message.reply_text("👍") # Respuesta simple para cortesía
         return
+
+    # --- Procesamiento con OpenAI ---
+    # Incrementar contador de mensajes ANTES de llamar a OpenAI
+    update_user_usage(user_id, message_increment=1)
 
     try:
         # Crear o recuperar el hilo de conversación del usuario
@@ -256,19 +373,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Obtener la última respuesta del asistente
         assistant_response = messages.data[0].content[0].text.value
 
+         # --- Guardar el último mensaje para feedback --- <-- NUEVO
+        context.user_data['last_assistant_message'] = assistant_response
+         # --------------------------------------------
+
     except Exception as e:
         logging.error(f"Error processing message: {str(e)}")
         assistant_response = f"Lo siento, hubo un error al procesar tu mensaje: {str(e)}"
         # Limpiar el hilo si hay un error
         if user_id in user_threads:
             del user_threads[user_id]
+        # No guardamos este mensaje de error para feedback
+        if 'last_assistant_message' in context.user_data:
+            del context.user_data['last_assistant_message']
 
     # Respondemos al usuario con el texto del asistente
     await update.message.reply_text(assistant_response)
     
-    # Solo añadimos feedback para respuestas sustanciales (no para mensajes de sistema)
-    if not any(keyword in user_text for keyword in ["útil", "gracias", "ok", "vale"]):
-        keyboard = [["👍 Útil", "👎 No útil", "❓ Nueva pregunta"]]
+    # Solo añadimos botones de feedback si no hubo error y no fue cortesía
+    if "Lo siento, hubo un error" not in assistant_response:
+        keyboard = [["👍 Útil", "👎 No útil"]] # Quitamos "Nueva pregunta"
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text(
             "¿Te ha resultado útil esta respuesta?",
@@ -310,15 +434,6 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-async def feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Permite al usuario dar retroalimentación"""
-    keyboard = [["👍 Útil", "👎 No útil"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    await update.message.reply_text(
-        "¿Te fue útil mi última respuesta?",
-        reply_markup=reply_markup
-    )
-
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra opciones para actualizar el plan"""
     keyboard = [
@@ -341,18 +456,25 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el plan actual y los planes disponibles"""
     user_id = update.effective_user.id
-    usage = get_user_usage(user_id)
-    plan_type = get_user_plan(user_id)
-    current_plan = SUBSCRIPTION_PLANS[plan_type]
-    
+    user_data = get_user(user_id)
+
+    if not user_data:
+        await update.message.reply_text("No encuentro tus datos. Por favor, usa /start primero.")
+        return
+
+    current_plan_type = user_data['plan']
+    current_plan = SUBSCRIPTION_PLANS[current_plan_type]
+    message_count = user_data['message_count']
+    # token_count = user_data['token_count'] # Podrías añadir esto si lo usas
+
     message = f"📊 Tu plan actual: {current_plan['name']}\n"
-    message += f"📝 Mensajes usados hoy: {usage.message_count}/{current_plan['daily_messages']}\n"
-    message += f"🔢 Tokens disponibles por día: {current_plan['tokens_per_day']}\n"
-    
-    if plan_type != "FREE":
-        expiry = user_plans[user_id]["expiry"]
+    message += f"📝 Mensajes usados hoy: {message_count}/{current_plan['daily_messages']}\n"
+    # message += f"🔢 Tokens usados hoy: {token_count}/{current_plan['tokens_per_day']}\n" # Descomentar si usas tokens
+
+    if current_plan_type != "FREE" and user_data['expiry_date']:
+        expiry = datetime.fromisoformat(user_data['expiry_date'])
         message += f"📅 Tu suscripción vence el: {expiry.strftime('%d/%m/%Y')}\n"
-    
+
     message += "\n💡 Planes disponibles:\n\n"
     message += "FREE:\n"
     message += "- Plan básico gratuito\n"
@@ -366,7 +488,7 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += "- 20 mensajes/día\n"
     message += "- Precio: 6.99€/mes\n\n"
     
-    if plan_type == "FREE":
+    if current_plan_type == "FREE":
         message += "\n🌟 Usa /upgrade para mejorar tu plan"
     
     await update.message.reply_text(message)
@@ -376,10 +498,18 @@ def main():
     verify_env_variables()
     
     try:
+        # Inicializar SQLite <-- NUEVO
+        init_db()
+
         application = (
             ApplicationBuilder()
             .token(BOT_TOKEN)
-            .concurrent_updates(False)  # Cambiado a False
+            # .concurrent_updates(False) # Puedes volver a probar True si quieres concurrencia
+            .concurrent_updates(True)
+            .connection_pool_size(16) # Añadido para manejar concurrencia
+            .connect_timeout(20.0)
+            .read_timeout(20.0)
+            .write_timeout(20.0)
             .build()
         )
         
@@ -391,7 +521,6 @@ def main():
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(CommandHandler("reset", reset_command))
         application.add_handler(CommandHandler("faq", faq_command))
-        application.add_handler(CommandHandler("feedback", feedback_command))
         application.add_handler(CommandHandler("plan", plan_command))
         application.add_handler(CommandHandler("upgrade", upgrade_command))
         

@@ -6,3 +6,5 @@ backup/
 backup/*/
 backup_files/
 backup_files/*/
+*.db
+*.db-journal

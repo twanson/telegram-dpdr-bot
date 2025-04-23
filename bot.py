@@ -165,6 +165,22 @@ def update_user_usage(user_id: int, message_increment: int = 1, token_increment:
     finally:
         conn.close()
 
+def update_user_plan(user_id: int, plan: str, expiry_date_iso: str | None):
+    """Actualiza el plan y la fecha de expiración de un usuario."""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    try:
+        c.execute("UPDATE users SET plan = ?, expiry_date = ? WHERE user_id = ?",
+                  (plan.upper(), expiry_date_iso, user_id))
+        conn.commit()
+        logging.info(f"Plan actualizado para {user_id}: {plan.upper()}, Expiración: {expiry_date_iso}")
+        return True
+    except sqlite3.Error as e:
+        logging.error(f"Error actualizando plan para {user_id}: {e}")
+        return False
+    finally:
+        conn.close()
+
 def add_feedback(user_id: int, message: str, rating: str):
     """Guarda el feedback del usuario en la base de datos."""
     conn = sqlite3.connect(DB_PATH)
@@ -179,7 +195,23 @@ def add_feedback(user_id: int, message: str, rating: str):
         logging.error(f"Error guardando feedback para usuario {user_id}: {e}")
     finally:
         conn.close()
-    # --- Fin Funciones de Base de Datos ---
+
+def get_recent_feedback(limit: int = 5):
+    """Obtiene las últimas 'limit' entradas de feedback de la base de datos."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
+    c = conn.cursor()
+    try:
+        c.execute("SELECT * FROM feedback ORDER BY timestamp DESC LIMIT ?", (limit,))
+        feedback_data = c.fetchall()
+        return feedback_data # Devuelve una lista de filas (o lista vacía)
+    except sqlite3.Error as e:
+        logging.error(f"Error obteniendo feedback: {e}")
+        return [] # Devuelve lista vacía en caso de error
+    finally:
+        conn.close()
+
+# --- Fin Funciones de Base de Datos ---
 
 # Añadir verificación de variables de entorno
 def verify_env_variables():
@@ -493,6 +525,159 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(message)
 
+# --- Funciones de Admin ---
+async def admin_user_info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Muestra información de un usuario específico."""
+    admin_id = update.effective_user.id
+
+    # 1. Verificar si es admin
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    # 2. Obtener el user_id objetivo del comando
+    try:
+        target_user_id_str = context.args[0]
+        target_user_id = int(target_user_id_str)
+    except (IndexError, ValueError):
+        await update.message.reply_text("⚠️ Uso: /user_info <user_id>")
+        return
+
+    # 3. Obtener datos del usuario
+    user_data = get_user(target_user_id)
+
+    if not user_data:
+        await update.message.reply_text(f"❌ No se encontró usuario con ID: {target_user_id}")
+        return
+
+    # 4. Formatear y enviar respuesta
+    current_plan_type = user_data['plan']
+    current_plan = SUBSCRIPTION_PLANS[current_plan_type]
+    message_count = user_data['message_count']
+    last_reset = user_data['last_reset_date']
+
+    message = f"ℹ️ **Información del Usuario: {target_user_id}**\n\n"
+    message += f"👤 **ID:** `{target_user_id}`\n"
+    message += f"🏷️ **Plan:** {current_plan['name']} (`{current_plan_type}`)\n"
+    message += f"✉️ **Mensajes Hoy:** {message_count}/{current_plan['daily_messages']}\n"
+    # Añadir tokens si se implementa
+    # token_count = user_data['token_count']
+    # message += f"🔢 **Tokens Hoy:** {token_count}/{current_plan['tokens_per_day']}\n"
+    message += f"🔄 **Último Reseteo:** {last_reset}\n"
+
+    if user_data['expiry_date']:
+        expiry = datetime.fromisoformat(user_data['expiry_date'])
+        message += f"⏳ **Expiración Plan:** {expiry.strftime('%d/%m/%Y')}\n"
+    else:
+        message += "⏳ **Expiración Plan:** N/A (Plan Gratuito)\n"
+
+    await update.message.reply_text(message, parse_mode='Markdown')
+
+async def admin_set_plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Establece el plan y opcionalmente la duración para un usuario."""
+    admin_id = update.effective_user.id
+
+    # 1. Verificar si es admin
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    # 2. Parsear y validar argumentos
+    if len(context.args) < 2 or len(context.args) > 3:
+        await update.message.reply_text("⚠️ Uso: /set_plan <user_id> <PLAN> [dias]")
+        return
+
+    try:
+        target_user_id = int(context.args[0])
+        target_plan_name = context.args[1].upper()
+        duration_days = None
+        if len(context.args) == 3:
+            duration_days = int(context.args[2])
+            if duration_days <= 0:
+                raise ValueError("Los días deben ser un número positivo.")
+
+        if target_plan_name not in SUBSCRIPTION_PLANS:
+            raise ValueError(f"Plan inválido. Opciones: {', '.join(SUBSCRIPTION_PLANS.keys())}")
+
+    except ValueError as e:
+        await update.message.reply_text(f"❌ Error en los argumentos: {e}")
+        return
+
+    # 3. Calcular fecha de expiración
+    expiry_date_iso = None
+    if target_plan_name != 'FREE' and duration_days is not None:
+        expiry_date = date.today() + timedelta(days=duration_days)
+        expiry_date_iso = expiry_date.isoformat()
+    # Si se cambia a FREE (o no se dan días para un plan de pago), la expiración se limpia
+
+    # 4. Actualizar base de datos
+    success = update_user_plan(target_user_id, target_plan_name, expiry_date_iso)
+
+    # 5. Confirmar al admin
+    if success:
+        expiry_msg = f" con expiración el {datetime.fromisoformat(expiry_date_iso).strftime('%d/%m/%Y')}" if expiry_date_iso else " (sin expiración definida)"
+        await update.message.reply_text(f"✅ Plan actualizado para el usuario `{target_user_id}`.
+Nuevo plan: **{target_plan_name}**{expiry_msg}", parse_mode='Markdown')
+        # Opcional: Podrías resetear los contadores del día al cambiar de plan
+        # update_user_usage(target_user_id, message_increment=-get_user(target_user_id)['message_count']) # Reset msg count
+    else:
+        await update.message.reply_text(f"❌ Error al actualizar el plan para el usuario `{target_user_id}` en la base de datos.")
+
+async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Muestra las últimas N entradas de feedback."""
+    admin_id = update.effective_user.id
+
+    # 1. Verificar si es admin
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    # 2. Obtener cantidad (opcional)
+    limit = 5 # Valor por defecto
+    if context.args and len(context.args) == 1:
+        try:
+            limit = int(context.args[0])
+            if limit <= 0:
+                raise ValueError("La cantidad debe ser positiva.")
+            if limit > 50: # Prevenir pedir demasiados
+                 limit = 50
+                 await update.message.reply_text("⚠️ Mostrando un máximo de 50 entradas.")
+        except ValueError:
+            await update.message.reply_text("⚠️ Uso: /view_feedback [cantidad] (la cantidad debe ser un número positivo)")
+            return
+    elif len(context.args) > 1:
+         await update.message.reply_text("⚠️ Uso: /view_feedback [cantidad]")
+         return
+
+    # 3. Obtener feedback de la BD
+    feedback_entries = get_recent_feedback(limit)
+
+    if not feedback_entries:
+        await update.message.reply_text("ℹ️ No hay entradas de feedback todavía.")
+        return
+
+    # 4. Formatear y enviar respuesta
+    message = f"💬 **Últimas {len(feedback_entries)} entradas de Feedback:**\n\n"
+    for entry in feedback_entries:
+        timestamp_dt = datetime.fromisoformat(entry['timestamp'])
+        formatted_ts = timestamp_dt.strftime('%Y-%m-%d %H:%M')
+        rating_emoji = "👍" if entry['rating'] == 'positive' else "👎"
+        message += f"* **Usuario:** `{entry['user_id']}` ({rating_emoji} {entry['rating']})\n"
+        message += f"* **Fecha:** {formatted_ts}\n"
+        # Escapamos caracteres markdown en el mensaje de feedback
+        safe_message = entry['message'].replace('*', '\*').replace('_', '\_').replace('`', '\`')
+        message += f"* **Mensaje Asistente:** \n```\n{safe_message}\n```\n"
+        message += "---\n"
+
+    # Enviar mensajes largos en partes si es necesario
+    if len(message) > 4096:
+        for i in range(0, len(message), 4096):
+            await update.message.reply_text(message[i:i+4096], parse_mode='Markdown')
+    else:
+        await update.message.reply_text(message, parse_mode='Markdown')
+
+# --- Fin Funciones de Admin ---
+
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
@@ -526,6 +711,12 @@ def main():
         
         # Handler para mensajes de texto
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+        # --- Añadir comandos de Admin ---
+        application.add_handler(CommandHandler("user_info", admin_user_info_command))
+        application.add_handler(CommandHandler("set_plan", admin_set_plan_command))
+        application.add_handler(CommandHandler("view_feedback", admin_view_feedback_command))
+        # -------------------------------
 
         logging.info("Bot initialized successfully")
         application.run_polling(

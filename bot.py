@@ -336,7 +336,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         run = client.beta.threads.runs.create(
             thread_id=thread.id,
             assistant_id=ASSISTANT_ID,
-            model="gpt-4-turbo-preview",
+            model="gpt-4o",
             temperature=0.7,
             instructions=instructions
         )

@@ -250,6 +250,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Maneja cualquier mensaje de texto del usuario """
+    # Añadir comprobación explícita para ignorar comandos en este handler
+    if update.message and update.message.text and update.message.text.startswith('/'):
+        return # Ignorar comandos explícitamente aquí
+
     user_id = update.effective_user.id
     user_text = update.message.text # Ya no lo ponemos en minúsculas aquí
 
@@ -291,7 +295,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text_lower = user_text.lower() # Lo ponemos en minúsculas ahora
 
     # Verificamos si es un feedback o un mensaje de sistema
+    is_feedback_message = False # Flag para saber si este mensaje FUE feedback
     if user_text_lower in ["👍 útil", "👎 no útil", "❓ nueva pregunta"]:
+        is_feedback_message = True # Marcar como mensaje de feedback
         if context.user_data.get('last_assistant_message'):
             last_message = context.user_data['last_assistant_message']
             if user_text_lower == "👍 útil":
@@ -422,8 +428,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Respondemos al usuario con el texto del asistente
     await update.message.reply_text(assistant_response)
     
-    # Solo añadimos botones de feedback si no hubo error y no fue cortesía
-    if "Lo siento, hubo un error" not in assistant_response:
+    # Solo añadimos botones de feedback si NO hubo error Y si el mensaje actual NO ERA feedback
+    if not is_feedback_message and "Lo siento, hubo un error" not in assistant_response:
         keyboard = [["👍 Útil", "👎 No útil"]] # Quitamos "Nueva pregunta"
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text(
@@ -616,8 +622,7 @@ async def admin_set_plan_command(update: Update, context: ContextTypes.DEFAULT_T
     # 5. Confirmar al admin
     if success:
         expiry_msg = f" con expiración el {datetime.fromisoformat(expiry_date_iso).strftime('%d/%m/%Y')}" if expiry_date_iso else " (sin expiración definida)"
-        await update.message.reply_text(f"""✅ Plan actualizado para el usuario `{target_user_id}`.
-Nuevo plan: **{target_plan_name}**{expiry_msg}""", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ Plan actualizado para el usuario `{target_user_id}`.\nNuevo plan: **{target_plan_name}**{expiry_msg}", parse_mode='Markdown')
         # Opcional: Podrías resetear los contadores del día al cambiar de plan
         # update_user_usage(target_user_id, message_increment=-get_user(target_user_id)['message_count']) # Reset msg count
     else:

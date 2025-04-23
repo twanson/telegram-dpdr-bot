@@ -291,7 +291,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text_lower = user_text.lower() # Lo ponemos en minúsculas ahora
 
     # Verificamos si es un feedback o un mensaje de sistema
-    if user_text_lower in ["�� útil", "👎 no útil", "❓ nueva pregunta"]:
+    if user_text_lower in ["👍 útil", "👎 no útil", "❓ nueva pregunta"]:
         if context.user_data.get('last_assistant_message'):
             last_message = context.user_data['last_assistant_message']
             if user_text_lower == "👍 útil":
@@ -616,8 +616,8 @@ async def admin_set_plan_command(update: Update, context: ContextTypes.DEFAULT_T
     # 5. Confirmar al admin
     if success:
         expiry_msg = f" con expiración el {datetime.fromisoformat(expiry_date_iso).strftime('%d/%m/%Y')}" if expiry_date_iso else " (sin expiración definida)"
-        await update.message.reply_text(f"✅ Plan actualizado para el usuario `{target_user_id}`.
-Nuevo plan: **{target_plan_name}**{expiry_msg}", parse_mode='Markdown')
+        await update.message.reply_text(f"""✅ Plan actualizado para el usuario `{target_user_id}`.
+Nuevo plan: **{target_plan_name}**{expiry_msg}""", parse_mode='Markdown')
         # Opcional: Podrías resetear los contadores del día al cambiar de plan
         # update_user_usage(target_user_id, message_increment=-get_user(target_user_id)['message_count']) # Reset msg count
     else:

@@ -223,6 +223,29 @@ def get_recent_feedback(limit: int = 5):
     finally:
         conn.close()
 
+def get_all_users(plan_filter: str | None = None):
+    """Obtiene todos los usuarios, opcionalmente filtrados por plan."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        c = conn.cursor()
+        query = "SELECT user_id, plan FROM users ORDER BY user_id"
+        params = []
+        if plan_filter:
+            query = "SELECT user_id, plan FROM users WHERE plan = ? ORDER BY user_id"
+            params.append(plan_filter.upper())
+            
+        c.execute(query, params)
+        users = c.fetchall()
+        return users # Lista de usuarios o lista vacía
+    except sqlite3.Error as e:
+        logging.error(f"Error obteniendo todos los usuarios: {e}")
+        return []
+    finally:
+        if conn:
+            conn.close()
+
 # --- Fin Funciones de Base de Datos ---
 
 # Añadir verificación de variables de entorno
@@ -693,6 +716,61 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
     else:
         await update.message.reply_text(message, parse_mode='Markdown')
 
+async def admin_list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Lista todos los usuarios, opcionalmente filtrados por plan."""
+    admin_id = update.effective_user.id
+
+    # 1. Verificar si es admin
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    # 2. Obtener filtro de plan (opcional)
+    plan_filter = None
+    if context.args:
+        if len(context.args) == 1:
+            plan_filter_arg = context.args[0].upper()
+            if plan_filter_arg in SUBSCRIPTION_PLANS:
+                plan_filter = plan_filter_arg
+            else:
+                await update.message.reply_text(f"⚠️ Plan inválido: {context.args[0]}. Opciones: {', '.join(SUBSCRIPTION_PLANS.keys())}")
+                return
+        else:
+            await update.message.reply_text("⚠️ Uso: /list_users [PLAN]")
+            return
+            
+    # 3. Obtener usuarios de la BD
+    users = get_all_users(plan_filter)
+
+    if not users:
+        filter_msg = f" con plan {plan_filter}" if plan_filter else ""
+        await update.message.reply_text(f"ℹ️ No se encontraron usuarios{filter_msg}.")
+        return
+
+    # 4. Formatear y enviar respuesta (con paginación simple)
+    header = f"👥 **Lista de Usuarios ({len(users)} total{'es' if len(users) != 1 else ''})**"
+    if plan_filter:
+        header += f" - Plan: {plan_filter}"
+    header += "\n---\n"
+    
+    message_part = header
+    line_count = 0
+    max_lines_per_message = 50 # Aproximado para no superar límite de Telegram
+
+    for user in users:
+        line = f"`{user['user_id']}` - {user['plan']}\n"
+        if line_count >= max_lines_per_message:
+            await update.message.reply_text(message_part, parse_mode='Markdown')
+            message_part = header # Reiniciar para el siguiente mensaje
+            line_count = 0
+            
+        message_part += line
+        line_count += 1
+
+    # Enviar la última parte (o la única si es corta)
+    if message_part != header: # Asegurar que hay contenido para enviar
+         await update.message.reply_text(message_part, parse_mode='Markdown')
+
 # --- Fin Funciones de Admin ---
 
 def main():
@@ -733,6 +811,7 @@ def main():
         application.add_handler(CommandHandler("user_info", admin_user_info_command))
         application.add_handler(CommandHandler("set_plan", admin_set_plan_command))
         application.add_handler(CommandHandler("view_feedback", admin_view_feedback_command))
+        application.add_handler(CommandHandler("list_users", admin_list_users_command))
         # -------------------------------
 
         logging.info("Bot initialized successfully")

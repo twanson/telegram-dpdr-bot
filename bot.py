@@ -307,14 +307,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ Maneja cualquier mensaje de texto del usuario """
+    """ Maneja mensajes de texto, incluyendo las opciones simples del FAQ """
     if update.message and update.message.text and update.message.text.startswith('/'):
-        return
+        return # Ignorar comandos explícitamente
 
     user_id = update.effective_user.id
     user_text = update.message.text
 
-    # --- Lógica de Límites con SQLite ---
+    # --- Lógica de Límites (sin cambios) ---
     user_data = get_user(user_id)
     if not user_data:
         add_user(user_id)
@@ -346,131 +346,132 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     # --- Fin Lógica de Límites ---
 
-    # Lista de respuestas de cortesía que no requieren procesamiento
-    cortesia = ["de nada", "gracias", "ok", "vale", "👍", "👎"]
-    user_text_lower = user_text.lower() # Lo ponemos en minúsculas ahora
-
-    # Verificamos si es un feedback o un mensaje de sistema
-    is_feedback_message = False # Flag para saber si este mensaje FUE feedback
-    if user_text_lower in ["👍 útil", "👎 no útil", "❓ nueva pregunta"]:
-        is_feedback_message = True # Marcar como mensaje de feedback
+    # --- Procesamiento ---
+    is_feedback_message = False
+    if user_text.lower() in ["👍 útil", "👎 no útil"]:
+        is_feedback_message = True
         if context.user_data.get('last_assistant_message'):
             last_message = context.user_data['last_assistant_message']
-            if user_text_lower == "👍 útil":
-                add_feedback(user_id, last_message, 'positive')
-                await update.message.reply_text("¡Gracias por tu feedback positivo!")
-            elif user_text_lower == "👎 no útil":
-                add_feedback(user_id, last_message, 'negative')
-                await update.message.reply_text("Gracias por tu feedback. Lo tendremos en cuenta para mejorar.")
-            # Limpiamos el mensaje guardado
+            rating = 'positive' if user_text.lower() == "👍 útil" else 'negative'
+            add_feedback(user_id, last_message, rating)
+            feedback_reply = "¡Gracias por tu feedback positivo!" if rating == 'positive' else "Gracias por tu feedback. Lo tendremos en cuenta para mejorar."
+            await update.message.reply_text(feedback_reply)
             del context.user_data['last_assistant_message']
         else:
              await update.message.reply_text("Gracias por tu feedback.")
-        return # No procesamos estos mensajes con OpenAI
-
-    # Si es un mensaje de cortesía, no procesamos ni pedimos feedback
-    if user_text_lower in cortesia:
-        await update.message.reply_text("👍") # Respuesta simple para cortesía
         return
 
-    # --- Procesamiento con OpenAI ---
+    if user_text.lower() in ["de nada", "gracias", "ok", "vale", "👍", "👎"]:
+        await update.message.reply_text("👍")
+        return
+
+    # --- Preparar llamada a OpenAI ---
     update_user_usage(user_id, message_increment=1)
 
+    instruction_to_use = None
+    message_content = user_text
+
+    # --- Manejo específico para opciones simples de FAQ ---
+    if user_text == "Entender DPDR":
+        instruction_to_use = (
+            "Proporciona una explicación clara y tranquilizadora sobre qué es el DPDR, "
+            "dirigida a alguien que lo está experimentando. Explica que es una respuesta de protección del cerebro "
+            "ante el estrés o la ansiedad intensa (mecanismo primitivo de 'congelación' o disociación), "
+            "enfatizando que no es peligroso, ni significa volverse loco, y es temporal. "
+            "Usa un tono empático y normalizador."
+        )
+        message_content = "¿Qué es el DPDR explicado de forma tranquilizadora para quien lo sufre?"
+
+    elif user_text == "Ansiedad general":
+        instruction_to_use = (
+            "Proporciona una introducción clara y tranquilizadora sobre qué es la ansiedad generalizada (TAG). "
+            "Explica que es más que una preocupación normal, describiendo sus síntomas comunes (preocupación excesiva, "
+            "inquietud, fatiga, tensión muscular, problemas de sueño). Menciona que, aunque puede ser debilitante, "
+            "es tratable. Explica brevemente que puede surgir de una combinación de factores (genética, química cerebral, "
+            "experiencias vitales). Usa un tono empático e informativo."
+        )
+        message_content = "¿Qué es la ansiedad general explicada de forma tranquilizadora?"
+
+    # --- Construir Instrucción Final ---
+    if instruction_to_use:
+        final_instructions = instruction_to_use + (" Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente "
+                                                "(como [fuente.txt]) directamente en tu respuesta final.")
+    else:
+        base_instructions = ("Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de "
+                             "ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, "
+                             "especialmente en DPDR. Proporciona respuestas claras y de apoyo.")
+        final_instructions = base_instructions + (" Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente "
+                                                  "(como [fuente.txt]) directamente en tu respuesta final.")
+
+    # --- Llamada a OpenAI (con persistencia de hilos) ---
+    assistant_response = ""
     try:
-        # --- Obtener/Crear Thread ID desde/hacia la BD ---
-        user_data = get_user(user_id) # Re-fetch user data for latest thread_id
+        user_data = get_user(user_id) # Reobtener por si thread_id cambió
         current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None
 
         if not current_thread_id:
-            logging.info(f"DB: No thread_id found for user {user_id}. Creating new one.") # Log
+            logging.info(f"DB: No thread_id found for user {user_id}. Creating new one.")
             thread = client.beta.threads.create()
             current_thread_id = thread.id
-            logging.info(f"API: New thread created: {current_thread_id}") # Log
+            logging.info(f"API: New thread created: {current_thread_id}")
             update_user_thread_id(user_id, current_thread_id)
-            logging.info(f"DB: Saved new thread_id {current_thread_id} for user {user_id}.") # Log
+            logging.info(f"DB: Saved new thread_id {current_thread_id} for user {user_id}.")
         else:
-            logging.info(f"DB: Found existing thread_id for user {user_id}: {current_thread_id}") # Log
-        # ------------------------------------------------
+            logging.info(f"DB: Found existing thread_id for user {user_id}: {current_thread_id}")
 
-        # Construir instrucciones base (MODIFICADA)
-        base_instructions = "Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, especialmente en DPDR. Proporciona respuestas claras y de apoyo."
-        # Modificado para no depender de user_text directamente aquí
-        temp_instructions = context.user_data.pop('temp_instructions', None) # Usar user_data si se preparan instrucciones antes
-        if temp_instructions:
-             base_instructions = temp_instructions
-        # Ejemplo si se quisiera seguir usando user_text para FAQ:
-        # faq_instructions = get_faq_instructions(user_text) # Función hipotética
-        # if faq_instructions: 
-        #    base_instructions = faq_instructions
-            
-        # Añadir instrucción sobre idioma y citas
-        final_instructions = base_instructions + " Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente (como [fuente.txt]) directamente en tu respuesta final."
-        
-        logging.info(f"Using thread_id: {current_thread_id} for user {user_id}") # Log
-        logging.info(f"Final Instructions: {final_instructions}") # Log para ver la instrucción final
+        logging.info(f"Using thread_id: {current_thread_id} for user {user_id}")
+        logging.info(f"Final Instructions: {final_instructions}")
 
-        # Añadir el mensaje del usuario al hilo
         message = client.beta.threads.messages.create(
             thread_id=current_thread_id,
             role="user",
-            content=user_text
+            content=message_content
         )
-        logging.info(f"Message added to thread {current_thread_id}") # Log
+        logging.info(f"Message added to thread {current_thread_id}")
 
-        # Ejecutar el asistente
         run = client.beta.threads.runs.create(
             thread_id=current_thread_id,
             assistant_id=ASSISTANT_ID,
             model="gpt-4o",
             temperature=0.7,
-            instructions=final_instructions # <-- Usar instrucciones finales MODIFICADAS
+            instructions=final_instructions
         )
-        logging.info(f"Run {run.id} created for thread {current_thread_id}") # Log
+        logging.info(f"Run {run.id} created for thread {current_thread_id}")
 
         await update.message.reply_text("Procesando tu pregunta, por favor espera...")
 
         start_time = time.time()
         completed = False
-
         while not completed and (time.time() - start_time) < 300:
             run_status = client.beta.threads.runs.retrieve(
-                thread_id=current_thread_id, # <-- Usar ID de BD/creado
+                thread_id=current_thread_id,
                 run_id=run.id
             )
-
             if run_status.status == 'completed':
                 completed = True
                 break
             elif run_status.status == 'failed':
-                # update_user_thread_id(user_id, None) # Opcional
                 raise Exception(f"Error del asistente: {run_status.last_error}")
-
             time.sleep(2)
 
         if not completed:
             raise TimeoutError("El asistente tardó demasiado en responder")
 
-        messages = client.beta.threads.messages.list(
-            thread_id=current_thread_id # <-- Usar ID de BD/creado
-        )
-
+        messages = client.beta.threads.messages.list(thread_id=current_thread_id)
         assistant_response = messages.data[0].content[0].text.value
-
         context.user_data['last_assistant_message'] = assistant_response
 
     except Exception as e:
         logging.error(f"Error processing message for user {user_id}: {str(e)}")
         assistant_response = f"Lo siento, hubo un error al procesar tu mensaje: {str(e)}"
-        # update_user_thread_id(user_id, None) # Opcional
         if 'last_assistant_message' in context.user_data:
             del context.user_data['last_assistant_message']
 
-    # Respondemos al usuario con el texto del asistente
+    # --- Respuesta y Feedback ---
     await update.message.reply_text(assistant_response)
     
-    # Solo añadimos botones de feedback si NO hubo error Y si el mensaje actual NO ERA feedback
     if not is_feedback_message and "Lo siento, hubo un error" not in assistant_response:
-        keyboard = [["👍 Útil", "👎 No útil"]] # Quitamos "Nueva pregunta"
+        keyboard = [["👍 Útil", "👎 No útil"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text(
             "¿Te ha resultado útil esta respuesta?",
@@ -496,18 +497,21 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra categorías de preguntas frecuentes"""
+    """Muestra categorías de preguntas frecuentes actualizadas."""
     keyboard = [
-        ["Entender DPDR", "Síntomas"],
-        ["Tratamientos", "Ejercicios"],
-        ["Ayuda a Entenderme", "Recursos"]
+        ["Entender DPDR", "Ansiedad general"],
+        ["Síntomas", "Ejercicios"],
+        ["Explicar a Otros", "Recursos"] # Renombrado y añadida Ansiedad
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True) # Hacer resize
     await update.message.reply_text(
-        "Selecciona una categoría:\n\n"
-        "💡 'Entender DPDR' te da una visión general del trastorno.\n"
-        "❤️ 'Ayuda a Entenderme' está pensado para compartir con familiares y "
-        "amigos, ayudándoles a comprender mejor tu experiencia.",
+        "Selecciona un área de interés:\n\n"
+        "🧠 **Entender DPDR:** Una explicación tranquilizadora sobre qué es y por qué ocurre.\n"
+        "🌀 **Ansiedad general:** Información sobre la ansiedad, sus mecanismos y cómo se manifiesta.\n"
+        "❤️ **Explicar a Otros:** Ayuda para describir tu experiencia (DPDR o ansiedad) a familiares y amigos.\n"
+        "🩺 **Síntomas:** Un repaso a los síntomas comunes y qué pueden indicar.\n"
+        "🧘 **Ejercicios:** Técnicas y ejercicios prácticos para manejar DPDR y ansiedad.\n"
+        "📚 **Recursos:** Enlaces, libros y otros materiales de apoyo.",
         reply_markup=reply_markup
     )
 

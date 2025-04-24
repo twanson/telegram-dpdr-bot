@@ -34,7 +34,7 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
 # Configuración de la base de datos SQLite <-- NUEVO
-DB_PATH = 'dpdr_bot.db'
+DB_PATH = '/data/dpdr_bot.db' # <-- Añadido para usar el volumen persistente
 
 # Inicializamos el cliente de OpenAI
 client = OpenAI(

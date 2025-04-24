@@ -378,67 +378,54 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     try:
         # --- Obtener/Crear Thread ID desde/hacia la BD ---
-        current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None # Asegurarse que la columna existe
+        user_data = get_user(user_id) # Re-fetch user data for latest thread_id
+        current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None
 
         if not current_thread_id:
-            logging.info(f"No se encontró thread_id para {user_id}, creando uno nuevo.")
+            logging.info(f"DB: No thread_id found for user {user_id}. Creating new one.") # Log
             thread = client.beta.threads.create()
             current_thread_id = thread.id
+            logging.info(f"API: New thread created: {current_thread_id}") # Log
             update_user_thread_id(user_id, current_thread_id)
+            logging.info(f"DB: Saved new thread_id {current_thread_id} for user {user_id}.") # Log
         else:
-            logging.info(f"Usando thread_id existente para {user_id}: {current_thread_id}")
+            logging.info(f"DB: Found existing thread_id for user {user_id}: {current_thread_id}") # Log
         # ------------------------------------------------
 
-        # Manejo especial para las categorías del FAQ
-        if user_text in ["ayuda a entenderme", "Ayuda a Entenderme".lower()]:
-            instructions = (
-                "Proporciona una explicación del DPDR para familiares y amigos usando exactamente este formato y estructura:\n\n"
-                "1. ¿Qué es DPDR?\n"
-                "Explica que es una respuesta de defensa del cerebro ante la ansiedad/estrés. "
-                "Usa la analogía de ver la vida a través de una pantalla de TV o un cristal, "
-                "enfatizando que no es peligroso ni permanente.\n\n"
-                "2. ¿Por qué ocurre?\n"
-                "Explica la respuesta de congelación como mecanismo de protección natural, "
-                "similar a cuando el cerebro se 'desconecta' temporalmente para protegerse.\n\n"
-                "3. ¿Cómo se siente?\n"
-                "Describe las sensaciones usando ejemplos cotidianos como: sentirse como en un sueño despierto, "
-                "o como si estuvieras viendo una película de tu propia vida.\n\n"
-                "4. ¿Es real o está solo en mi cabeza?\n"
-                "Valida la experiencia pero enfatiza su temporalidad.\n\n"
-                "5. ¿Cómo puedo apoyar a alguien con DPDR?\n"
-                "Lista de formas prácticas de apoyo.\n\n"
-                "6. La recuperación es posible\n"
-                "Mensaje esperanzador sobre la recuperación.\n\n"
-                "7. Conclusión\n"
-                "Agradecimiento y recordatorio final positivo.\n\n"
-                "Mantén el mismo tono tranquilizador y empático, usando analogías naturales y cotidianas."
-            )
-            # Añadimos el contenido específico para esta opción
-            user_text = "Explica qué es el DPDR de manera tranquilizadora para familiares y amigos"
-        elif user_text == "entender dpdr":
-            instructions = (
-                "Proporciona una explicación general del DPDR como un mecanismo de protección del cerebro ante el estrés, "
-                "enfatizando su naturaleza temporal y tratable. Incluye una breve explicación de su origen como respuesta "
-                "natural de protección, pero mantén un tono informativo y tranquilizador."
-            )
-        else:
-            instructions = "Proporciona respuestas concisas y específicas sobre DPDR."
+        # Construir instrucciones base (MODIFICADA)
+        base_instructions = "Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, especialmente en DPDR. Proporciona respuestas claras y de apoyo."
+        # Modificado para no depender de user_text directamente aquí
+        temp_instructions = context.user_data.pop('temp_instructions', None) # Usar user_data si se preparan instrucciones antes
+        if temp_instructions:
+             base_instructions = temp_instructions
+        # Ejemplo si se quisiera seguir usando user_text para FAQ:
+        # faq_instructions = get_faq_instructions(user_text) # Función hipotética
+        # if faq_instructions: 
+        #    base_instructions = faq_instructions
+            
+        # Añadir instrucción sobre idioma y citas
+        final_instructions = base_instructions + " Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente (como [fuente.txt]) directamente en tu respuesta final."
+        
+        logging.info(f"Using thread_id: {current_thread_id} for user {user_id}") # Log
+        logging.info(f"Final Instructions: {final_instructions}") # Log para ver la instrucción final
 
         # Añadir el mensaje del usuario al hilo
         message = client.beta.threads.messages.create(
-            thread_id=current_thread_id, # <-- Usar ID de BD/creado
+            thread_id=current_thread_id,
             role="user",
             content=user_text
         )
+        logging.info(f"Message added to thread {current_thread_id}") # Log
 
         # Ejecutar el asistente
         run = client.beta.threads.runs.create(
-            thread_id=current_thread_id, # <-- Usar ID de BD/creado
+            thread_id=current_thread_id,
             assistant_id=ASSISTANT_ID,
             model="gpt-4o",
             temperature=0.7,
-            instructions=instructions
+            instructions=final_instructions # <-- Usar instrucciones finales MODIFICADAS
         )
+        logging.info(f"Run {run.id} created for thread {current_thread_id}") # Log
 
         await update.message.reply_text("Procesando tu pregunta, por favor espera...")
 

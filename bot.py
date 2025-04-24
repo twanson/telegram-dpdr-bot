@@ -10,7 +10,8 @@ from telegram.ext import (
     CommandHandler, 
     MessageHandler, 
     filters,
-    ContextTypes
+    ContextTypes,
+    ConversationHandler
 )
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -271,6 +272,9 @@ def update_user_thread_id(user_id: int, thread_id: str | None):
 
 # --- Fin Funciones de Base de Datos ---
 
+# --- Constantes para Estados de Conversación ---
+ASK_EXPLAIN_TARGET = range(1)
+
 # Añadir verificación de variables de entorno
 def verify_env_variables():
     """Verifica que todas las variables de entorno necesarias estén presentes"""
@@ -292,19 +296,30 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     logging.error(f"Exception while handling an update: {context.error}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Se ejecuta cuando el usuario usa /start"""
+    """Se ejecuta cuando el usuario usa /start y envía un saludo bilingüe."""
     user_id = update.effective_user.id
     add_user(user_id) # <-- Añadir usuario a la BD al iniciar
-    await update.message.reply_text(
+
+    welcome_message = (
         "¡Hola! Soy un asistente especializado en los síntomas de la ansiedad DPDR (despersonalización y desrealización). "
         "Puedo ayudarte con información y consejos basados en guías y recursos especializados.\n\n"
-        "📌 Comandos disponibles:\n"
+        "📌 **Comandos disponibles:**\n"
         "/faq - Ver categorías principales\n"
         "/help - Ver todos los comandos\n"
         "/plan - Ver tu plan actual y límites\n"
         "/reset - Reiniciar conversación\n\n"
-        "¿En qué puedo ayudarte?"
+        "¿En qué puedo ayudarte?\n"
+        "---\n"
+        "Hi! I'm an assistant specializing in the symptoms of DPDR anxiety (depersonalization and derealization). "
+        "I can help you with information and advice based on specialized guides and resources.\n\n"
+        "📌 **Available commands:**\n"
+        "/faq - View main categories\n"
+        "/help - View all commands\n"
+        "/plan - View your current plan and limits\n"
+        "/reset - Restart conversation\n\n"
+        "How can I help you?"
     )
+    await update.message.reply_text(welcome_message)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Maneja mensajes de texto, incluyendo las opciones simples del FAQ """
@@ -779,7 +794,99 @@ async def admin_list_users_command(update: Update, context: ContextTypes.DEFAULT
     if message_part != header: # Asegurar que hay contenido para enviar
          await update.message.reply_text(message_part, parse_mode='Markdown')
 
-# --- Fin Funciones de Admin ---
+# --- Funciones para la Conversación "Explicar a Otros" ---
+async def explain_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Punto de entrada para la conversación 'Explicar a Otros'."""
+    # Podríamos verificar límites aquí también si queremos que cuente como mensaje
+    # user_id = update.effective_user.id
+    # update_user_usage(user_id, message_increment=1)
+    await update.message.reply_text(
+        "Entendido. A veces es difícil poner en palabras lo que sentimos. 😊\n\n"
+        "¿Sobre qué te gustaría que prepare una explicación sencilla para tus familiares o amigos?\n"
+        "Por ejemplo: 'DPDR', 'ansiedad', 'sentirme irreal', 'ataques de pánico'..."
+    )
+    return ASK_EXPLAIN_TARGET
+
+async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Recibe el tema que el usuario quiere explicar y genera la respuesta."""
+    user_topic = update.message.text
+    user_id = update.effective_user.id
+    
+    # Incrementar contador aquí, ya que es una interacción significativa
+    update_user_usage(user_id, message_increment=1) 
+    # (Habría que verificar límites aquí si no se hizo en explain_entry)
+
+    await update.message.reply_text("Vale, preparando una explicación sobre '{}'... ".format(user_topic))
+
+    explain_instruction = (
+        f"Actúa como alguien que ayuda a explicar condiciones de salud mental a familiares y amigos de forma muy sencilla y empática. "
+        f"El usuario quiere explicar '{user_topic}'. Genera un texto corto (máximo 3-4 párrafos) que el usuario pueda compartir. "
+        f"Debe ser fácil de entender para alguien sin conocimientos previos, usando analogías si es posible, validando la experiencia "
+        f"y enfocándose en cómo pueden apoyar. Evita jerga técnica compleja. Si el tema es vago, intenta dar una explicación general útil."
+    )
+    final_instructions = explain_instruction + (" Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente "
+                                               "(como [fuente.txt]) directamente en tu respuesta final.")
+
+    assistant_response = ""
+    try:
+        user_data = get_user(user_id)
+        current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None
+        if not current_thread_id:
+             logging.info(f"DB: No thread_id found for user {user_id} in explain_conv. Creating new one.")
+             thread = client.beta.threads.create()
+             current_thread_id = thread.id
+             update_user_thread_id(user_id, current_thread_id)
+             logging.info(f"DB: Saved new thread_id {current_thread_id} for user {user_id}.")
+        else:
+             logging.info(f"DB: Found existing thread_id for user {user_id}: {current_thread_id}")
+
+        logging.info(f"Using thread_id: {current_thread_id} for user {user_id} (Explain Conv)")
+        logging.info(f"Final Instructions (Explain Conv): {final_instructions}")
+
+        message = client.beta.threads.messages.create(
+            thread_id=current_thread_id,
+            role="user",
+            content=f"Generar explicación para familiares/amigos sobre: {user_topic}" # Usar un prompt interno
+        )
+
+        run = client.beta.threads.runs.create(
+            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, model="gpt-4o",
+            temperature=0.7, instructions=final_instructions
+        )
+        
+        start_time = time.time()
+        completed = False
+        while not completed and (time.time() - start_time) < 300:
+             run_status = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
+             if run_status.status == 'completed': completed = True; break
+             elif run_status.status == 'failed': raise Exception(f"Error del asistente: {run_status.last_error}")
+             time.sleep(2)
+        if not completed: raise TimeoutError("Timeout en la respuesta del asistente")
+        
+        messages = client.beta.threads.messages.list(thread_id=current_thread_id)
+        assistant_response = messages.data[0].content[0].text.value
+
+    except Exception as e:
+        logging.error(f"Error processing explain_target for user {user_id}: {str(e)}")
+        assistant_response = f"Lo siento, hubo un error al generar la explicación: {str(e)}"
+
+    await update.message.reply_text(
+        "Aquí tienes una propuesta de explicación que puedes compartir o adaptar:\n\n---\n"
+        f"{assistant_response}\n---\n\n"
+        "Espero que sea útil. ¿Puedo ayudarte con algo más?"
+    )
+    # No preguntar feedback aquí, ya que es el final de una conversación guiada.
+    # Quizás añadir botones para volver al FAQ o finalizar.
+    return ConversationHandler.END
+
+async def explain_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancela la conversación actual."""
+    await update.message.reply_text(
+        "De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras."
+    )
+    return ConversationHandler.END
+
+# --- Fin Funciones Conversación ---
 
 def main():
     logging.info("Starting bot...")
@@ -804,6 +911,17 @@ def main():
         # Registramos el manejador de errores
         application.add_error_handler(error_handler)
 
+        # --- Crear ConversationHandler para "Explicar a Otros" ---
+        explain_conv_handler = ConversationHandler(
+            entry_points=[MessageHandler(filters.TEXT & filters.Regex('^Explicar a Otros$'), explain_entry)],
+            states={
+                ASK_EXPLAIN_TARGET: [MessageHandler(filters.TEXT & ~filters.COMMAND, explain_target_received)],
+            },
+            fallbacks=[CommandHandler('cancel', explain_cancel)],
+            # conversation_timeout=300 # Opcional: 5 minutos
+        )
+        # --- Fin ConversationHandler ---
+
         # Registramos los handlers
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("help", help_command))
@@ -812,8 +930,12 @@ def main():
         application.add_handler(CommandHandler("plan", plan_command))
         application.add_handler(CommandHandler("upgrade", upgrade_command))
         
-        # Handler para mensajes de texto
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        # Añadir PRIMERO el ConversationHandler
+        application.add_handler(explain_conv_handler)
+
+        # Handler general de mensajes (al final)
+        # (Debe ignorar el texto de los botones que inician conversaciones)
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.Regex('^Explicar a Otros$'), handle_message))
 
         # --- Añadir comandos de Admin ---
         application.add_handler(CommandHandler("user_info", admin_user_info_command))

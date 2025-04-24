@@ -4,6 +4,7 @@ import logging
 import time
 import sys
 import sqlite3 # <-- Añadir importación
+import re # <--- Añadir import
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, 
@@ -68,6 +69,15 @@ SUBSCRIPTION_PLANS = {
 ADMIN_IDS = [
     23684095  # Admin principal
 ]
+
+# --- Función Auxiliar para Limpiar Citas ---
+def clean_citations(text: str) -> str:
+    """Elimina patrones de citas de OpenAI (ej: 【...†...】 o [数字:数字†...]) del texto."""
+    pattern1 = r'\s*【.*?†.*?】'
+    pattern2 = r'\s*\[\d+:\d+†.*?\]'
+    cleaned_text = re.sub(pattern1, '', text)
+    cleaned_text = re.sub(pattern2, '', cleaned_text)
+    return cleaned_text.strip()
 
 # --- Funciones de Base de Datos SQLite --- <-- NUEVO
 def init_db():
@@ -484,16 +494,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         assistant_response = messages.data[0].content[0].text.value
         context.user_data['last_assistant_message'] = assistant_response
 
+        # <<< --- LIMPIAR CITAS ANTES DE ENVIAR --- >>>
+        cleaned_response = clean_citations(assistant_response)
+        # <<< ------------------------------------ >>>
+
     except Exception as e:
         logging.error(f"Error processing message for user {user_id}: {str(e)}")
-        assistant_response = f"Lo siento, hubo un error al procesar tu mensaje: {str(e)}"
+        cleaned_response = f"Lo siento, hubo un error al procesar tu mensaje: {str(e)}"
         if 'last_assistant_message' in context.user_data:
             del context.user_data['last_assistant_message']
 
     # --- Respuesta y Feedback ---
-    await update.message.reply_text(assistant_response)
+    await update.message.reply_text(cleaned_response)
     
-    if not is_feedback_message and "Lo siento, hubo un error" not in assistant_response:
+    if not is_feedback_message and "Lo siento, hubo un error" not in cleaned_response:
         keyboard = [["👍 Útil", "👎 No útil"]]
         reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
         await update.message.reply_text(
@@ -877,17 +891,19 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         messages = client.beta.threads.messages.list(thread_id=current_thread_id)
         assistant_response = messages.data[0].content[0].text.value
 
+        # <<< --- LIMPIAR CITAS ANTES DE ENVIAR --- >>>
+        cleaned_response = clean_citations(assistant_response)
+        # <<< ------------------------------------ >>>
+
     except Exception as e:
         logging.error(f"Error processing explain_target for user {user_id}: {str(e)}")
-        assistant_response = f"Lo siento, hubo un error al generar la explicación: {str(e)}"
+        cleaned_response = f"Lo siento, hubo un error al generar la explicación: {str(e)}"
 
     await update.message.reply_text(
         "Aquí tienes una propuesta de explicación que puedes compartir o adaptar:\n\n---\n"
-        f"{assistant_response}\n---\n\n"
+        f"{cleaned_response}\n---\n\n"
         "Espero que sea útil. ¿Puedo ayudarte con algo más?"
     )
-    # No preguntar feedback aquí, ya que es el final de una conversación guiada.
-    # Quizás añadir botones para volver al FAQ o finalizar.
     return ConversationHandler.END
 
 async def explain_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

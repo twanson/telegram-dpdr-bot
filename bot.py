@@ -74,7 +74,13 @@ ADMIN_IDS = [
 # --- Funciones de Base de Datos SQLite --- <-- NUEVO
 def init_db():
     """Inicializa la base de datos SQLite si no existe."""
+    conn = None # Inicializar conn
     try:
+        # Asegurar que el directorio de la BD existe
+        db_dir = os.path.dirname(DB_PATH)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+        
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         # Crear tabla de usuarios si no existe
@@ -109,9 +115,10 @@ def init_db():
 
 def add_user(user_id: int):
     """Añade un usuario nuevo a la base de datos si no existe."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    conn = None # Inicializar conn
     try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         c.execute("INSERT OR IGNORE INTO users (user_id, last_reset_date) VALUES (?, ?)",
                   (user_id, date.today().isoformat()))
         conn.commit()
@@ -123,10 +130,11 @@ def add_user(user_id: int):
 
 def get_user(user_id: int):
     """Obtiene los datos del usuario de la base de datos."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
-    c = conn.cursor()
+    conn = None # Inicializar conn
     try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
+        c = conn.cursor()
         c.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
         user_data = c.fetchone()
         if user_data:
@@ -150,9 +158,10 @@ def get_user(user_id: int):
 
 def update_user_usage(user_id: int, message_increment: int = 1, token_increment: int = 0):
     """Actualiza el uso del usuario en la base de datos."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    conn = None # Inicializar conn
     try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         c.execute('''
             UPDATE users
             SET message_count = message_count + ?,
@@ -167,9 +176,10 @@ def update_user_usage(user_id: int, message_increment: int = 1, token_increment:
 
 def update_user_plan(user_id: int, plan: str, expiry_date_iso: str | None):
     """Actualiza el plan y la fecha de expiración de un usuario."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    conn = None # Inicializar conn
     try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         c.execute("UPDATE users SET plan = ?, expiry_date = ? WHERE user_id = ?",
                   (plan.upper(), expiry_date_iso, user_id))
         conn.commit()
@@ -183,9 +193,10 @@ def update_user_plan(user_id: int, plan: str, expiry_date_iso: str | None):
 
 def add_feedback(user_id: int, message: str, rating: str):
     """Guarda el feedback del usuario en la base de datos."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    conn = None # Inicializar conn
     try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
         timestamp = datetime.now().isoformat()
         c.execute("INSERT INTO feedback (user_id, message, rating, timestamp) VALUES (?, ?, ?, ?)",
                   (user_id, message, rating, timestamp))
@@ -198,10 +209,11 @@ def add_feedback(user_id: int, message: str, rating: str):
 
 def get_recent_feedback(limit: int = 5):
     """Obtiene las últimas 'limit' entradas de feedback de la base de datos."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
-    c = conn.cursor()
+    conn = None # Inicializar conn
     try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
+        c = conn.cursor()
         c.execute("SELECT * FROM feedback ORDER BY timestamp DESC LIMIT ?", (limit,))
         feedback_data = c.fetchall()
         return feedback_data # Devuelve una lista de filas (o lista vacía)
@@ -669,8 +681,8 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
         rating_emoji = "👍" if entry['rating'] == 'positive' else "👎"
         message += f"* **Usuario:** `{entry['user_id']}` ({rating_emoji} {entry['rating']})\n"
         message += f"* **Fecha:** {formatted_ts}\n"
-        # Escapamos caracteres markdown en el mensaje de feedback
-        safe_message = entry['message'].replace('*', '\*').replace('_', '\_').replace('`', '\`')
+        # Escapamos caracteres markdown en el mensaje de feedback (usando doble \\)
+        safe_message = entry['message'].replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
         message += f"* **Mensaje Asistente:** \n```\n{safe_message}\n```\n"
         message += "---\n"
 

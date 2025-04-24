@@ -409,14 +409,22 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- Construir Instrucción Final ---
     if instruction_to_use:
-        final_instructions = instruction_to_use + (" Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente "
-                                                "(como [fuente.txt]) directamente en tu respuesta final.")
+        final_instructions = instruction_to_use + (
+            " Responde en el mismo idioma que el usuario. "
+            "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
+            "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
+        )
     else:
-        base_instructions = ("Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de "
-                             "ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, "
-                             "especialmente en DPDR. Proporciona respuestas claras y de apoyo.")
-        final_instructions = base_instructions + (" Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente "
-                                                  "(como [fuente.txt]) directamente en tu respuesta final.")
+        base_instructions = (
+            "Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de "
+            "ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, "
+            "especialmente en DPDR. Proporciona respuestas claras y de apoyo."
+        )
+        final_instructions = base_instructions + (
+            " Responde en el mismo idioma que el usuario. "
+            "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
+            "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
+        )
 
     # --- Llamada a OpenAI (con persistencia de hilos) ---
     assistant_response = ""
@@ -824,8 +832,11 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         f"Debe ser fácil de entender para alguien sin conocimientos previos, usando analogías si es posible, validando la experiencia "
         f"y enfocándose en cómo pueden apoyar. Evita jerga técnica compleja. Si el tema es vago, intenta dar una explicación general útil."
     )
-    final_instructions = explain_instruction + (" Responde en el mismo idioma que el usuario. No incluyas las citas de los archivos fuente "
-                                               "(como [fuente.txt]) directamente en tu respuesta final.")
+    final_instructions = explain_instruction + (
+        " Responde en el mismo idioma que el usuario. "
+        "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
+        "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
+    )
 
     assistant_response = ""
     try:

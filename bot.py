@@ -41,9 +41,6 @@ client = OpenAI(
     default_headers={"OpenAI-Beta": "assistants=v2"}
 )
 
-# Diccionario para almacenar los hilos de conversación por usuario
-user_threads = {}
-
 # Definición de planes
 SUBSCRIPTION_PLANS = {
     "FREE": {
@@ -73,29 +70,39 @@ ADMIN_IDS = [
 
 # --- Funciones de Base de Datos SQLite --- <-- NUEVO
 def init_db():
-    """Inicializa la base de datos SQLite si no existe."""
-    conn = None # Inicializar conn
+    """Inicializa la base de datos SQLite si no existe y añade columnas si faltan."""
+    conn = None
     try:
-        # Asegurar que el directorio de la BD existe
         db_dir = os.path.dirname(DB_PATH)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
-        
+
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
         # Crear tabla de usuarios si no existe
-        c.execute('''
+        c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 plan TEXT DEFAULT 'FREE',
                 expiry_date TEXT,
                 message_count INTEGER DEFAULT 0,
                 token_count INTEGER DEFAULT 0,
-                last_reset_date TEXT
+                last_reset_date TEXT,
+                thread_id TEXT DEFAULT NULL
             )
-        ''')
+        """)
+        # Intentar añadir la columna thread_id si no existe (para compatibilidad)
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN thread_id TEXT DEFAULT NULL")
+            logging.info("Columna 'thread_id' añadida a la tabla 'users'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e):
+                raise e
+            else:
+                logging.info("Columna 'thread_id' ya existía.")
+
         # Crear tabla de feedback si no existe
-        c.execute('''
+        c.execute("""
             CREATE TABLE IF NOT EXISTS feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
@@ -103,12 +110,11 @@ def init_db():
                 rating TEXT,
                 timestamp TEXT
             )
-        ''')
+        """)
         conn.commit()
         logging.info("✅ Base de datos SQLite inicializada/verificada.")
     except sqlite3.Error as e:
         logging.error(f"❌ Error inicializando SQLite: {str(e)}")
-        raise
     finally:
         if conn:
             conn.close()
@@ -246,6 +252,23 @@ def get_all_users(plan_filter: str | None = None):
         if conn:
             conn.close()
 
+def update_user_thread_id(user_id: int, thread_id: str | None):
+    """Actualiza o borra el thread_id de OpenAI para un usuario."""
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        c = conn.cursor()
+        c.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (thread_id, user_id))
+        conn.commit()
+        logging.info(f"Thread ID actualizado para {user_id}: {'Borrado' if thread_id is None else thread_id}")
+        return True
+    except sqlite3.Error as e:
+        logging.error(f"Error actualizando thread_id para {user_id}: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
 # --- Fin Funciones de Base de Datos ---
 
 # Añadir verificación de variables de entorno
@@ -285,20 +308,18 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """ Maneja cualquier mensaje de texto del usuario """
-    # Añadir comprobación explícita para ignorar comandos en este handler
     if update.message and update.message.text and update.message.text.startswith('/'):
-        return # Ignorar comandos explícitamente aquí
+        return
 
     user_id = update.effective_user.id
-    user_text = update.message.text # Ya no lo ponemos en minúsculas aquí
+    user_text = update.message.text
 
-    # --- Lógica de Límites con SQLite --- <-- MODIFICADO
+    # --- Lógica de Límites con SQLite ---
     user_data = get_user(user_id)
     if not user_data:
-         # Si por alguna razón el usuario no está en la BD (aunque start debería añadirlo)
         add_user(user_id)
         user_data = get_user(user_id)
-        if not user_data: # Si sigue sin funcionar, hay un problema grave
+        if not user_data:
              await update.message.reply_text("Error al procesar tu solicitud. Por favor, intenta usar /start de nuevo.")
              logging.error(f"No se pudo obtener/crear el usuario {user_id} en la BD.")
              return
@@ -353,15 +374,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # --- Procesamiento con OpenAI ---
-    # Incrementar contador de mensajes ANTES de llamar a OpenAI
     update_user_usage(user_id, message_increment=1)
 
     try:
-        # Crear o recuperar el hilo de conversación del usuario
-        if user_id not in user_threads:
-            user_threads[user_id] = client.beta.threads.create()
-        
-        thread = user_threads[user_id]
+        # --- Obtener/Crear Thread ID desde/hacia la BD ---
+        current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None # Asegurarse que la columna existe
+
+        if not current_thread_id:
+            logging.info(f"No se encontró thread_id para {user_id}, creando uno nuevo.")
+            thread = client.beta.threads.create()
+            current_thread_id = thread.id
+            update_user_thread_id(user_id, current_thread_id)
+        else:
+            logging.info(f"Usando thread_id existente para {user_id}: {current_thread_id}")
+        # ------------------------------------------------
 
         # Manejo especial para las categorías del FAQ
         if user_text in ["ayuda a entenderme", "Ayuda a Entenderme".lower()]:
@@ -400,63 +426,55 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Añadir el mensaje del usuario al hilo
         message = client.beta.threads.messages.create(
-            thread_id=thread.id,
+            thread_id=current_thread_id, # <-- Usar ID de BD/creado
             role="user",
             content=user_text
         )
 
         # Ejecutar el asistente
         run = client.beta.threads.runs.create(
-            thread_id=thread.id,
+            thread_id=current_thread_id, # <-- Usar ID de BD/creado
             assistant_id=ASSISTANT_ID,
             model="gpt-4o",
             temperature=0.7,
             instructions=instructions
         )
 
-        # Informar al usuario que estamos procesando
         await update.message.reply_text("Procesando tu pregunta, por favor espera...")
 
-        # Esperar a que el asistente complete la respuesta con timeout
         start_time = time.time()
         completed = False
-        
-        while not completed and (time.time() - start_time) < 300:  # 5 minutos máximo
+
+        while not completed and (time.time() - start_time) < 300:
             run_status = client.beta.threads.runs.retrieve(
-                thread_id=thread.id,
+                thread_id=current_thread_id, # <-- Usar ID de BD/creado
                 run_id=run.id
             )
-            
+
             if run_status.status == 'completed':
                 completed = True
                 break
             elif run_status.status == 'failed':
+                # update_user_thread_id(user_id, None) # Opcional
                 raise Exception(f"Error del asistente: {run_status.last_error}")
-            
-            time.sleep(2)  # Esperamos 2 segundos entre checks
+
+            time.sleep(2)
 
         if not completed:
             raise TimeoutError("El asistente tardó demasiado en responder")
 
-        # Obtener los mensajes del hilo
         messages = client.beta.threads.messages.list(
-            thread_id=thread.id
+            thread_id=current_thread_id # <-- Usar ID de BD/creado
         )
-        
-        # Obtener la última respuesta del asistente
+
         assistant_response = messages.data[0].content[0].text.value
 
-         # --- Guardar el último mensaje para feedback --- <-- NUEVO
         context.user_data['last_assistant_message'] = assistant_response
-         # --------------------------------------------
 
     except Exception as e:
-        logging.error(f"Error processing message: {str(e)}")
+        logging.error(f"Error processing message for user {user_id}: {str(e)}")
         assistant_response = f"Lo siento, hubo un error al procesar tu mensaje: {str(e)}"
-        # Limpiar el hilo si hay un error
-        if user_id in user_threads:
-            del user_threads[user_id]
-        # No guardamos este mensaje de error para feedback
+        # update_user_thread_id(user_id, None) # Opcional
         if 'last_assistant_message' in context.user_data:
             del context.user_data['last_assistant_message']
 
@@ -483,12 +501,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reinicia la conversación del usuario"""
+    """Reinicia la conversación del usuario borrando su thread_id."""
     user_id = update.effective_user.id
-    if user_id in user_threads:
-        del user_threads[user_id]
+    update_user_thread_id(user_id, None) # Borrar de la BD
     await update.message.reply_text(
-        "He reiniciado tu conversación. Puedes empezar de nuevo."
+        "He reiniciado tu conversación. La próxima vez que me escribas, empezaré un nuevo hilo."
     )
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

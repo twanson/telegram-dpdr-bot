@@ -106,6 +106,7 @@ def stripe_webhook():
         if payment_status == 'paid' and client_reference_id and subscription_id:
             logging.info("[Webhook] Condición payment_status=='paid' y IDs presentes CUMPLIDA.")
             try:
+                logging.info("[Webhook] Entrando en el bloque try para procesar datos...")
                 user_id = int(client_reference_id)
                 logging.info(f"[Webhook] User ID parseado: {user_id}")
 

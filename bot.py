@@ -5,7 +5,7 @@ import time
 import sys
 import sqlite3 # <-- Añadir importación
 import re # <--- Añadir import
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 from telegram.ext import (
     ApplicationBuilder, 
     CommandHandler, 
@@ -77,12 +77,77 @@ LOCALES = {
         'faq_exercises': "Ejercicios",
         'faq_explain_other': "Explicar a Otros",
         'faq_resources': "Recursos",
-        'feedback_useful': "👍 útil",
-        'feedback_not_useful': "👎 no útil",
-        'feedback_thanks_positive': "¡Gracias por tu feedback positivo!",
-        'feedback_thanks_negative': "Gracias por tu feedback. Lo tendremos en cuenta para mejorar.",
-        'feedback_thanks_generic': "👍",
-        # Otros textos podrían ir aquí...
+        # FAQ Descriptions
+        'faq_select_area': "Selecciona un área de interés:",
+        'faq_area_understand': "🧠 **Entender DPDR:** Una explicación tranquilizadora sobre qué es y por qué ocurre.",
+        'faq_area_anxiety': "🌀 **Ansiedad general:** Información sobre la ansiedad, sus mecanismos y cómo se manifiesta.",
+        'faq_area_explain': "❤️ **Explicar a Otros:** Ayuda para describir tu experiencia (DPDR o ansiedad) a familiares y amigos.",
+        'faq_area_symptoms': "🩺 **Síntomas:** Un repaso a los síntomas comunes y qué pueden indicar.",
+        'faq_area_exercises': "🧘 **Ejercicios:** Técnicas y ejercicios prácticos para manejar DPDR y ansiedad.",
+        'faq_area_resources': "📚 **Recursos:** Enlaces, libros y otros materiales de apoyo.",
+        # Feedback
+        'feedback_useful': "👍 Útil", 
+        'feedback_not_useful': "👎 No útil", 
+        'feedback_prompt': "¿Te ha resultado útil esta respuesta?",
+        'feedback_thanks_positive': "¡Gracias por tu feedback positivo! 👍",
+        'feedback_thanks_negative': "Gracias por tu feedback. Lo tendremos en cuenta para mejorar. 👍",
+        'feedback_thanks_generic': "Gracias por tu feedback.", 
+        # Comandos
+        'start_welcome_1': "¡Hola! Soy un asistente especializado en los síntomas de la ansiedad DPDR (despersonalización y desrealización).",
+        'start_welcome_2': "Puedo ayudarte con información y consejos basados en guías y recursos especializados.",
+        'start_commands_title': "📌 **Comandos disponibles:**",
+        'start_faq': "/faq - Ver categorías principales",
+        'start_plan': "/plan - Ver tu plan actual y límites",
+        'start_upgrade': "/upgrade - Ver o mejorar tu plan 🌟",
+        'start_reset': "/reset - Reiniciar conversación",
+        'start_help': "/help - Ver todos los comandos",
+        'start_cta': "¿En qué puedo ayudarte?",
+        'help_title': "Comandos disponibles:",
+        'help_start': "/start - Inicia el bot",
+        'help_faq': "/faq - Muestra categorías de ayuda principales",
+        'help_plan': "/plan - Muestra tu plan de suscripción actual y límites",
+        'help_upgrade': "/upgrade - Muestra las opciones para mejorar tu plan 🌟",
+        'help_reset': "/reset - Reinicia tu conversación con el bot",
+        'help_help': "/help - Muestra esta lista de comandos",
+        'help_support': "/support - Contactar con soporte (si necesitas ayuda)",
+        'help_cta': "\\nTambién puedes escribirme directamente tu pregunta o seleccionar una opción de /faq.",
+        'plan_title': "📊 Tu plan actual:",
+        'plan_messages_today': "✉️ Mensajes usados hoy:",
+        'plan_expires': "📅 Tu suscripción vence el: {expiry_date}",
+        'plan_expiry_error': "Fecha inválida",
+        'plan_available_title': "�� Planes disponibles",
+        'plan_free_desc': \"\"\"*GRATUITO:*
+- Plan básico gratuito
+- {limit} mensajes/día\"\"\",
+        'plan_basic_desc': \"\"\"*BÁSICO:*
+- Para uso regular
+- {limit} mensajes/día
+- Precio: {price}€/mes\"\"\",
+        'plan_premium_desc': \"\"\"*PREMIUM:*
+- Para uso intensivo
+- {limit} mensajes/día
+- Precio: {price}€/mes\"\"\",
+        'plan_upgrade_cta_free': "🌟 Usa /upgrade para mejorar tu plan y obtener más mensajes diarios.",
+        'plan_upgrade_cta_paid': "🌟 Puedes usar /upgrade si deseas cambiar tu plan.",
+        'limit_reached_1': "Has alcanzado tu límite diario de mensajes. 🚫",
+        'limit_reached_2': "Tu plan '**{plan_name}**' permite {limit} mensajes al día.",
+        'limit_reached_cta': "🌟 **¡Mejora tu plan con /upgrade para obtener más mensajes diarios y seguir conversando!**",
+        # Upgrade/Stripe
+        'upgrade_generating_link': "Generando enlace de pago seguro...",
+        'upgrade_payment_link_message': "Haz clic aquí para completar tu suscripción:",
+        'error_price_id_not_found': "Error: No se encontró el ID de precio para ese plan.",
+        'error_stripe_session': "Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.",
+        # Explain Conversation
+        'explain_entry_prompt': "Claro, puedo ayudarte con eso. ¿Sobre qué tema específico (DPDR, ansiedad, un síntoma concreto, etc.) te gustaría que preparara una explicación sencilla para compartir?",
+        'explain_cancel_instruction': "(Puedes escribir /cancel para detener esto en cualquier momento)",
+        'explain_wait': "Vale, preparando una explicación sobre '{topic}'... Dame un momento.",
+        'explain_response_header': "Aquí tienes una propuesta de explicación que puedes compartir o adaptar:",
+        'explain_response_footer': "Espero que sea útil. ¿Puedo ayudarte con algo más?",
+        'explain_cancel_confirmation': "De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras.",
+        # Errores Genéricos
+        'error_generic': "Lo siento, hubo un error al procesar tu mensaje: {error}",
+        'error_no_user_data': "No encuentro tus datos. Por favor, usa /start primero.",
+        'reset_confirmation': "He reiniciado tu conversación. La próxima vez que me escribas, empezaré un nuevo hilo.",
     },
     'en': {
         # FAQ Buttons
@@ -92,22 +157,75 @@ LOCALES = {
         'faq_exercises': "Exercises",
         'faq_explain_other': "Explain to Others",
         'faq_resources': "Resources",
-        'feedback_useful': "👍 útil",
-        'feedback_not_useful': "👎 no útil",
-        'feedback_thanks_positive': "¡Thanks for your positive feedback!",
-        'feedback_thanks_negative': "Thanks for your feedback. We'll take it into account to improve.",
-        'feedback_thanks_generic': "👍",
-        # Other texts could go here...
+        # FAQ Descriptions
+        'faq_select_area': "Select an area of interest:",
+        'faq_area_understand': "🧠 **Understand DPDR:** A reassuring explanation of what it is and why it happens.",
+        'faq_area_anxiety': "🌀 **General Anxiety:** Information about anxiety, its mechanisms, and how it manifests.",
+        'faq_area_explain': "❤️ **Explain to Others:** Help to describe your experience (DPDR or anxiety) to family and friends.",
+        'faq_area_symptoms': "🩺 **Symptoms:** A review of common symptoms and what they might indicate.",
+        'faq_area_exercises': "🧘 **Exercises:** Practical techniques and exercises to manage DPDR and anxiety.",
+        'faq_area_resources': "📚 **Resources:** Links, books, and other support materials.",
+        # Feedback
+        'feedback_useful': "👍 Useful",
+        'feedback_not_useful': "👎 Not Useful",
+        'feedback_prompt': "Was this answer helpful to you?",
+        'feedback_thanks_positive': "Thanks for your positive feedback! 👍",
+        'feedback_thanks_negative': "Thanks for your feedback. We'll take it into account to improve. 👍",
+        'feedback_thanks_generic': "Thanks for your feedback.",
+        # Commands
+        'start_welcome_1': "Hi! I'm an assistant specializing in the symptoms of DPDR anxiety (depersonalization and derealization).",
+        'start_welcome_2': "I can help you with information and advice based on specialized guides and resources.",
+        'start_commands_title': "📌 **Available commands:**",
+        'start_faq': "/faq - View main categories",
+        'start_plan': "/plan - View your current plan and limits",
+        'start_upgrade': "/upgrade - View or upgrade your plan 🌟",
+        'start_reset': "/reset - Restart conversation",
+        'start_help': "/help - View all commands",
+        'start_cta': "How can I help you?",
+        'help_title': "Available commands:",
+        'help_start': "/start - Start the bot",
+        'help_faq': "/faq - Show main help categories",
+        'help_plan': "/plan - Show your current subscription plan and limits",
+        'help_upgrade': "/upgrade - Show options to upgrade your plan 🌟",
+        'help_reset': "/reset - Restart your conversation with the bot",
+        'help_help': "/help - Show this list of commands",
+        'help_cta': "\nYou can also ask me your question directly or select an option from /faq.",
+        'plan_title': "📊 Your current plan:",
+        'plan_messages_today': "✉️ Messages used today:",
+        'plan_expires': "📅 Your subscription expires on: {expiry_date}", # Added placeholder
+        'plan_available_title': "💡 Available plans", # Removed colon
+        'plan_free_desc': "*FREE:*
+- Basic free plan
+- {limit} messages/day",
+        'plan_basic_desc': "*BASIC:*
+- For regular use
+- {limit} messages/day
+- Price: €{price}/month",
+        'plan_premium_desc': "*PREMIUM:*
+- For heavy use
+- {limit} messages/day
+- Price: €{price}/month",
+        'plan_upgrade_cta_free': "🌟 Use /upgrade to improve your plan and get more daily messages.",
+        'plan_upgrade_cta_paid': "🌟 You can use /upgrade if you wish to change your plan.",
+        'limit_reached_1': "You have reached your daily message limit. 🚫",
+        'limit_reached_2': "Your '**{plan_name}**' plan allows {limit} messages per day.",
+        'limit_reached_cta': "🌟 **Upgrade your plan with /upgrade to get more daily messages and keep chatting!**",
+        # Other texts...
+        'error_generic': "Sorry, there was an error processing your message: {error}",
+        'error_no_user_data': "I can't find your data. Please use /start first.",
+        'reset_confirmation': "I have restarted your conversation. The next time you write to me, I will start a new thread.",
     }
-    # Añadir más idiomas si es necesario
 }
 
-def get_text(key: str, lang_code: str | None = 'en') -> str:
-    """Obtiene el texto traducido basado en el código de idioma."""
-    # Usar inglés por defecto si lang_code es None o no está en LOCALES
+def get_text(key: str, lang_code: str | None = 'en', **kwargs) -> str:
+    """Obtiene el texto traducido basado en el código de idioma y formatea con kwargs."""
     lang = lang_code if lang_code in LOCALES else 'en'
-    # Usar la propia clave como fallback si no se encuentra para ese idioma
-    return LOCALES.get(lang, {}).get(key, key)
+    text_template = LOCALES.get(lang, {}).get(key, key)
+    try:
+        return text_template.format(**kwargs)
+    except KeyError as e:
+        logging.warning(f"[i18n] Missing format key '{e}' for text key '{key}' in lang '{lang}'")
+        return text_template # Devuelve sin formatear si falta una clave
 # --- Fin i18n --- 
 
 # Configurar la clave API de Stripe globalmente
@@ -379,326 +497,264 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     logging.error(f"Exception while handling an update: {context.error}")
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Se ejecuta cuando el usuario usa /start y envía un saludo bilingüe."""
-    user_id = update.effective_user.id
-    add_user(user_id) # <-- Añadir usuario a la BD al iniciar
+    user = update.effective_user
+    user_id = user.id
+    lang = user.language_code or 'en'  # Default a 'en' si no hay código de idioma
 
-    welcome_message = (
-        "¡Hola! Soy un asistente especializado en los síntomas de la ansiedad DPDR (despersonalización y desrealización). "
-        "Puedo ayudarte con información y consejos basados en guías y recursos especializados.\n\n"
-        "📌 **Comandos disponibles:**\n"
-        "/faq - Ver categorías principales\n"
-        "/plan - Ver tu plan actual y límites\n"
-        "/upgrade - Ver o mejorar tu plan 🌟\n"
-        "/reset - Reiniciar conversación\n"
-        "/help - Ver todos los comandos\n\n"
-        "¿En qué puedo ayudarte?\n"
-        "---\n"
-        "Hi! I'm an assistant specializing in the symptoms of DPDR anxiety (depersonalization and derealization). "
-        "I can help you with information and advice based on specialized guides and resources.\n\n"
-        "📌 **Available commands:**\n"
-        "/faq - View main categories\n"
-        "/plan - View your current plan and limits\n"
-        "/upgrade - View or upgrade your plan 🌟\n"
-        "/reset - Restart conversation\n"
-        "/help - View all commands\n\n"
-        "How can I help you?"
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Verificar si el usuario ya existe
+    cursor.execute("SELECT plan, expiry_date, openai_thread_id FROM users WHERE user_id = ?", (user_id,))
+    user_data = cursor.fetchone()
+
+    if not user_data:
+        # Crear nuevo usuario con plan gratuito
+        today_date = date.today()
+        expiry_date = today_date + timedelta(days=365*10) # Caducidad muy lejana para el plan gratuito
+        cursor.execute(
+            "INSERT INTO users (user_id, username, first_name, last_name, language_code, plan, expiry_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, user.username, user.first_name, user.last_name, lang, 'free', expiry_date)
+        )
+        conn.commit()
+        logging.info(f"Nuevo usuario {user_id} ({user.username}) añadido con plan 'free'.")
+        openai_thread_id = None # El thread se creará al primer mensaje
+    else:
+        _, _, openai_thread_id = user_data
+        # Actualizar info básica si ha cambiado
+        cursor.execute(
+            "UPDATE users SET username = ?, first_name = ?, last_name = ?, language_code = ? WHERE user_id = ?",
+            (user.username, user.first_name, user.last_name, lang, user_id)
+        )
+        conn.commit()
+
+    # Inicializar el cliente de OpenAI aquí para asegurar que se usa el thread_id correcto
+    client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
+    if not openai_thread_id:
+        # Crear thread si no existe (primer inicio o reset)
+        thread = client.beta.threads.create()
+        openai_thread_id = thread.id
+        cursor.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (openai_thread_id, user_id))
+        conn.commit()
+        logging.info(f"Nuevo OpenAI thread creado para el usuario {user_id}: {openai_thread_id}")
+
+    context.user_data['openai_thread_id'] = openai_thread_id
+    context.user_data['openai_client'] = client
+
+    conn.close()
+
+    # Enviar mensaje de bienvenida usando get_text
+    welcome_text_1 = get_text('start_welcome_1', lang)
+    welcome_text_2 = get_text('start_welcome_2', lang)
+    commands_title = get_text('start_commands_title', lang)
+    faq_cmd = get_text('start_faq', lang)
+    plan_cmd = get_text('start_plan', lang)
+    upgrade_cmd = get_text('start_upgrade', lang)
+    reset_cmd = get_text('start_reset', lang)
+    help_cmd = get_text('start_help', lang)
+    cta_text = get_text('start_cta', lang)
+
+    full_message = (
+        f"{welcome_text_1}\n"
+        f"{welcome_text_2}\n\n"
+        f"{commands_title}\n"
+        f"{faq_cmd}\n"
+        f"{plan_cmd}\n"
+        f"{upgrade_cmd}\n"
+        f"{reset_cmd}\n"
+        f"{help_cmd}\n\n"
+        f"{cta_text}"
     )
-    await update.message.reply_text(welcome_message)
+
+    await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """ Maneja mensajes de texto, incluyendo las opciones simples del FAQ """
-    if update.message and update.message.text and update.message.text.startswith('/'):
-        return # Ignorar comandos explícitamente
+    user = update.effective_user
+    user_id = user.id
+    lang = user.language_code or 'en'
+    message_text = update.message.text
 
-    user_id = update.effective_user.id
-    user_text = update.message.text
+    # 0. Comprobar si el usuario existe (por si acaso)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT plan, daily_messages, openai_thread_id FROM users WHERE user_id = ?", (user_id,))
+    user_data = cursor.fetchone()
 
-    # --- Lógica de Límites (sin cambios) ---
-    user_data = get_user(user_id)
     if not user_data:
-        add_user(user_id)
-        user_data = get_user(user_id)
-        if not user_data:
-             await update.message.reply_text("Error al procesar tu solicitud. Por favor, intenta usar /start de nuevo.")
-             logging.error(f"No se pudo obtener/crear el usuario {user_id} en la BD.")
-             return
-
-    current_plan_type = user_data['plan'] if user_data else 'FREE'
-    # Manejo de expiración de plan (si se implementa)
-    if user_data and user_data['expiry_date']:
-        expiry = datetime.fromisoformat(user_data['expiry_date'])
-        if expiry < datetime.now():
-            current_plan_type = 'FREE'
-            # Podrías actualizar el plan a FREE en la BD aquí si es necesario
-
-    plan_limits = SUBSCRIPTION_PLANS[current_plan_type]
-    message_count = user_data['message_count'] if user_data else 0
-
-    # Verificar límites (excepto admins)
-    is_admin = user_id in ADMIN_IDS
-    if not is_admin and message_count >= plan_limits['daily_messages']:
-        limit_message = (
-            "Has alcanzado tu límite diario de mensajes. 🚫\n"
-            f"Tu plan '{plan_limits['name']}' permite {plan_limits['daily_messages']} mensajes al día.\n\n"
-            "🌟 **¡Mejora tu plan con /upgrade para obtener más mensajes diarios y seguir conversando!**"
-        )
-        await update.message.reply_text(limit_message)
+        await update.message.reply_text(get_text('error_no_user_data', lang))
+        conn.close()
         return
-    # --- Fin Lógica de Límites ---
+    
+    current_plan, daily_messages, openai_thread_id = user_data
+    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
-    # --- Procesamiento ---
-    lang_code = update.effective_user.language_code # Obtener idioma
-    is_feedback_message = False
-    # Comprobar feedback en ambos idiomas
-    if user_text.lower() in [get_text('feedback_useful', 'es').lower(), get_text('feedback_useful', 'en').lower(),
-                           get_text('feedback_not_useful', 'es').lower(), get_text('feedback_not_useful', 'en').lower()]:
-        is_feedback_message = True
-        if context.user_data.get('last_assistant_message'):
-            last_message = context.user_data['last_assistant_message']
-            # Determinar rating basado en el texto original
-            rating = 'positive' if user_text.lower() in [get_text('feedback_useful', 'es').lower(), get_text('feedback_useful', 'en').lower()] else 'negative'
-            add_feedback(user_id, last_message, rating)
-            # Traducir respuesta de feedback
-            feedback_reply = get_text('feedback_thanks_positive', lang_code) if rating == 'positive' else get_text('feedback_thanks_negative', lang_code)
-            await update.message.reply_text(feedback_reply)
-            del context.user_data['last_assistant_message']
-        else:
-             await update.message.reply_text(get_text('feedback_thanks_generic', lang_code))
+    # 1. Verificar límite de mensajes
+    if daily_messages >= plan_limit:
+        plan_name = current_plan.capitalize()
+        limit_msg_1 = get_text('limit_reached_1', lang)
+        limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
+        limit_cta = get_text('limit_reached_cta', lang)
+        full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
+        await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+        conn.close()
         return
 
-    # Ignorar mensajes simples (añadir traducciones si es necesario)
-    if user_text.lower() in ["de nada", "gracias", "ok", "vale", "👍", "👎", "you're welcome", "thanks", "ok", "okay"]:
-        await update.message.reply_text("👍") # Respuesta simple universal
-        return
+    # 2. Incrementar contador de mensajes
+    cursor.execute("UPDATE users SET daily_messages = daily_messages + 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close() # Cerrar conexión después de la actualización
 
-    # --- Preparar llamada a OpenAI ---
-    update_user_usage(user_id, message_increment=1)
+    # Recuperar cliente y thread_id de user_data si no están inicializados
+    client = context.user_data.get('openai_client')
+    current_thread_id = context.user_data.get('openai_thread_id')
 
-    instruction_to_use = None
-    message_content = user_text
-
-    # --- Manejo específico para opciones simples de FAQ (comprobar ambos idiomas) ---
-    # Mapear claves de traducción a instrucciones (mantener instrucciones originales por ahora)
-    faq_instructions = {
-        'faq_understand_dpdr': (
-            "Proporciona una explicación clara y tranquilizadora sobre qué es el DPDR, "
-            "dirigida a alguien que lo está experimentando. Explica que es una respuesta de protección del cerebro "
-            "ante el estrés o la ansiedad intensa (mecanismo primitivo de 'congelación' o disociación), "
-            "enfatizando que no es peligroso, ni significa volverse loco, y es temporal. "
-            "Usa un tono empático y normalizador."
-        ),
-        'faq_general_anxiety': (
-            "Proporciona una introducción clara y tranquilizadora sobre qué es la ansiedad generalizada (TAG). "
-            "Explica que es más que una preocupación normal, describiendo sus síntomas comunes (preocupación excesiva, "
-            "inquietud, fatiga, tensión muscular, problemas de sueño). Menciona que, aunque puede ser debilitante, "
-            "es tratable. Explica brevemente que puede surgir de una combinación de factores (genética, química cerebral, "
-            "experiencias vitales). Usa un tono empático e informativo."
-        ),
-        # Añadir otras claves si queremos dar respuestas predefinidas para ellas
-    }
-
-    matched_faq_key = None
-    for key in faq_instructions.keys():
-        # Comprobar si el texto del usuario coincide con la traducción en español o inglés
-        if user_text == get_text(key, 'es') or user_text == get_text(key, 'en'):
-            matched_faq_key = key
-            break
-            
-    if matched_faq_key:
-        instruction_to_use = faq_instructions[matched_faq_key]
-        # Usar un prompt interno estandarizado para la IA, independientemente del idioma del botón
-        # Esto evita enviar el texto del botón directamente como prompt
-        if matched_faq_key == 'faq_understand_dpdr':
-             message_content = "Explain DPDR reassuringly for someone experiencing it."
-        elif matched_faq_key == 'faq_general_anxiety':
-             message_content = "Explain Generalized Anxiety Disorder reassuringly."
-        else:
-             message_content = f"Explain the topic related to {matched_faq_key}"
-        logging.info(f"Handling simple FAQ click for key: {matched_faq_key}")
-
-    # --- Construir Instrucción Final ---
-    if instruction_to_use:
-        final_instructions = instruction_to_use + (
-            " Responde en el mismo idioma que el usuario. "
-            "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
-            "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
-        )
-    else:
-        base_instructions = (
-            "Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de "
-            "ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, "
-            "especialmente en DPDR. Proporciona respuestas claras y de apoyo."
-        )
-        final_instructions = base_instructions + (
-            " Responde en el mismo idioma que el usuario. "
-            "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
-            "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
-        )
-
-    # --- Llamada a OpenAI (con persistencia de hilos) ---
-    assistant_response = ""
-    try:
-        user_data = get_user(user_id) # Reobtener por si thread_id cambió
-        current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None
-
+    if not client or not current_thread_id:
+        logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
+        client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
+        current_thread_id = openai_thread_id # Usar el de la BD que leímos antes
         if not current_thread_id:
-            logging.info(f"DB: No thread_id found for user {user_id}. Creating new one.")
+            # Si AÚN no hay thread_id (usuario nuevo o reset justo antes de este mensaje)
+            logging.info(f"Creando nuevo thread para {user_id} dentro de handle_message.")
             thread = client.beta.threads.create()
             current_thread_id = thread.id
-            logging.info(f"API: New thread created: {current_thread_id}")
-            update_user_thread_id(user_id, current_thread_id)
-            logging.info(f"DB: Saved new thread_id {current_thread_id} for user {user_id}.")
-        else:
-            logging.info(f"DB: Found existing thread_id for user {user_id}: {current_thread_id}")
+            conn = get_db_connection() # Reabrir conexión
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
+            conn.commit()
+            conn.close()
+        
+        # Guardar en context para futuros mensajes
+        context.user_data['openai_client'] = client
+        context.user_data['openai_thread_id'] = current_thread_id
 
-        logging.info(f"Using thread_id: {current_thread_id} for user {user_id}")
-        logging.info(f"Final Instructions: {final_instructions}")
+    try:
+        # 3. Comprobar palabras clave críticas (solo si la comprobación está activa)
+        use_gpt4 = False
+        if CHECK_CRITICAL_KEYWORDS:
+            for keyword in CRITICAL_KEYWORDS:
+                # Usar word boundaries (\b) para evitar matches parciales
+                if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
+                    use_gpt4 = True
+                    logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
+                    break
 
-        # <<< Inicio Selección Dinámica de Modelo >>>
-        user_text_lower = user_text.lower()
-        use_gpt4o = False
-        detected_keyword = None
-        for keyword in CRITICAL_KEYWORDS:
-            # Usar word boundaries para evitar coincidencias parciales no deseadas (ej: 'control' en 'autocontrol')
-            # Nota: Esto requiere importar 're' si no está ya importado
-            if re.search(r'\b' + re.escape(keyword) + r'\b', user_text_lower):
-                use_gpt4o = True
-                detected_keyword = keyword
-                break 
+        # Seleccionar modelo basado en la comprobación
+        # TODO: Aún no tenemos el modelo GPT-4o listo, usar el normal por ahora.
+        # current_model = "gpt-4o" if use_gpt4 else "gpt-3.5-turbo"
+        # logging.info(f"Usando modelo: {current_model}") 
 
-        model_to_use = "gpt-4o" if use_gpt4o else "gpt-4o-mini"
-        if use_gpt4o:
-            logging.warning(f"Palabra clave crítica '{detected_keyword}' detectada en mensaje de user {user_id}. Usando modelo gpt-4o por seguridad.")
-        else:
-            logging.info(f"No se detectaron palabras clave críticas. Usando modelo {model_to_use}.")
-        # <<< Fin Selección Dinámica de Modelo >>>
-
-        message = client.beta.threads.messages.create(
+        # 4. Enviar mensaje a OpenAI
+        logging.info(f"Enviando mensaje del usuario {user_id} al thread {current_thread_id}")
+        client.beta.threads.messages.create(
             thread_id=current_thread_id,
             role="user",
-            content=message_content
+            content=message_text,
         )
-        logging.info(f"Message added to thread {current_thread_id}")
 
+        # 5. Ejecutar el Asistente
         run = client.beta.threads.runs.create(
             thread_id=current_thread_id,
             assistant_id=ASSISTANT_ID,
-            model=model_to_use, # <-- Usar modelo seleccionado
-            temperature=0.7,
-            instructions=final_instructions
+            # Se podrían añadir instrucciones específicas aquí si fuese necesario
+            # instructions="Por favor, responde de forma concisa."
         )
-        logging.info(f"Run {run.id} created for thread {current_thread_id} using model {model_to_use}")
 
-        await update.message.reply_text("Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.")
+        # 6. Esperar a que la ejecución termine
+        while run.status not in ["completed", "failed", "cancelled", "expired"]:
+            await asyncio.sleep(1) # Espera asíncrona
+            run = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
+            logging.debug(f"Run status para user {user_id}: {run.status}")
 
-        start_time = time.time()
-        completed = False
-        while not completed and (time.time() - start_time) < 300:
-            run_status = client.beta.threads.runs.retrieve(
-                thread_id=current_thread_id,
-                run_id=run.id
-            )
-            if run_status.status == 'completed':
-                completed = True
-                break
-            elif run_status.status == 'failed':
-                raise Exception(f"Error del asistente: {run_status.last_error}")
-            time.sleep(2)
+        # 7. Procesar respuesta si la ejecución fue exitosa
+        if run.status == "completed":
+            messages = client.beta.threads.messages.list(thread_id=current_thread_id, order="desc", limit=1)
+            assistant_message = messages.data[0].content[0].text.value
+            logging.info(f"Respuesta recibida del asistente para el usuario {user_id}")
 
-        if not completed:
-            raise TimeoutError("El asistente tardó demasiado en responder")
+            # 8. Enviar respuesta al usuario con botones de feedback
+            keyboard = [
+                [InlineKeyboardButton(get_text('feedback_useful', lang), callback_data='feedback_useful')],
+                [InlineKeyboardButton(get_text('feedback_not_useful', lang), callback_data='feedback_not_useful')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await update.message.reply_text(assistant_message, reply_markup=reply_markup)
 
-        messages = client.beta.threads.messages.list(thread_id=current_thread_id)
-        assistant_response = messages.data[0].content[0].text.value
-        context.user_data['last_assistant_message'] = assistant_response
-
-        # <<< --- LIMPIAR CITAS ANTES DE ENVIAR --- >>>
-        cleaned_response = clean_citations(assistant_response)
-        # <<< ------------------------------------ >>>
+        else:
+            logging.error(f"La ejecución del asistente falló para el usuario {user_id} con estado: {run.status}")
+            error_text = get_text('error_openai_run', lang, default="Lo siento, no pude procesar tu solicitud en este momento.") # Añadir locale si es necesario
+            await update.message.reply_text(error_text)
 
     except Exception as e:
-        logging.error(f"Error processing message for user {user_id}: {str(e)}")
-        cleaned_response = f"Lo siento, hubo un error al procesar tu mensaje: {str(e)}"
-        if 'last_assistant_message' in context.user_data:
-            del context.user_data['last_assistant_message']
-
-    # --- Respuesta y Feedback ---
-    await update.message.reply_text(cleaned_response)
-    
-    if not is_feedback_message and "Lo siento, hubo un error" not in cleaned_response:
-        keyboard = [["👍 Útil", "👎 No útil"]]
-        reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-        await update.message.reply_text(
-            "¿Te ha resultado útil esta respuesta?",
-            reply_markup=reply_markup
-        )
+        logging.error(f"Error inesperado al manejar el mensaje del usuario {user_id}: {e}", exc_info=True)
+        # Usar get_text para el error genérico
+        error_message = get_text('error_generic', lang).format(error=str(e))
+        await update.message.reply_text(error_message)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra la ayuda del bot"""
-    await update.message.reply_text(
-        "Comandos disponibles:\n"
-        "/start - Inicia el bot\n"
-        "/faq - Muestra categorías de ayuda principales\n"
-        "/plan - Muestra tu plan de suscripción actual y límites\n"
-        "/upgrade - Muestra las opciones para mejorar tu plan 🌟\n"
-        "/reset - Reinicia tu conversación con el bot\n"
-        "/help - Muestra esta lista de comandos\n"
-        "\nTambién puedes escribirme directamente tu pregunta o seleccionar una opción de /faq."
+    user = update.effective_user
+    lang = user.language_code or 'en'
+
+    help_text = (
+        f"{get_text('help_title', lang)}\n"
+        f"{get_text('start_faq', lang)}\n"
+        f"{get_text('start_plan', lang)}\n"
+        f"{get_text('start_upgrade', lang)}\n"
+        f"{get_text('start_reset', lang)}\n"
+        f"{get_text('start_help', lang)}\n"
+        f"{get_text('help_support', lang)}"
     )
+    await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Reinicia la conversación del usuario borrando su thread_id."""
-    user_id = update.effective_user.id
-    update_user_thread_id(user_id, None) # Borrar de la BD
-    await update.message.reply_text(
-        "He reiniciado tu conversación. La próxima vez que me escribas, empezaré un nuevo hilo."
-    )
+    user = update.effective_user
+    user_id = user.id
+    lang = user.language_code or 'en'
+
+    # Borrar el thread_id existente de la base de datos
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET openai_thread_id = NULL WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+    # Borrar el thread_id y el cliente de OpenAI de context.user_data
+    if 'openai_thread_id' in context.user_data:
+        del context.user_data['openai_thread_id']
+    if 'openai_client' in context.user_data:
+        del context.user_data['openai_client']
+
+    logging.info(f"Conversación reseteada para el usuario {user_id}. El próximo mensaje creará un nuevo thread.")
+
+    await update.message.reply_text(get_text('reset_confirmation', lang))
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra categorías de preguntas frecuentes actualizadas."""
-    lang_code = update.effective_user.language_code
-    
-    # Crear teclado traducido
-    keyboard = [
-        [get_text('faq_understand_dpdr', lang_code), get_text('faq_general_anxiety', lang_code)],
-        [get_text('faq_symptoms', lang_code), get_text('faq_exercises', lang_code)],
-        [get_text('faq_explain_other', lang_code), get_text('faq_resources', lang_code)]
-    ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    
-    # Crear mensaje traducido
-    message_text = f"{get_text('faq_select_area', lang_code)}\n\n" \
-                   f"{get_text('faq_area_understand', lang_code)}\n" \
-                   f"{get_text('faq_area_anxiety', lang_code)}\n" \
-                   f"{get_text('faq_area_explain', lang_code)}\n" \
-                   f"{get_text('faq_area_symptoms', lang_code)}\n" \
-                   f"{get_text('faq_area_exercises', lang_code)}\n" \
-                   f"{get_text('faq_area_resources', lang_code)}"
-                   
-    # Añadir las claves de traducción para las descripciones si no existen
-    # Necesitaríamos añadir a LOCALES['es'] y LOCALES['en']:
-    # 'faq_select_area': "Selecciona un área..." / "Select an area..."
-    # 'faq_area_understand': "🧠 **Entender DPDR:** ..." / "🧠 **Understand DPDR:** ..."
-    # etc. para todos los faq_area_...
+    user = update.effective_user
+    lang = user.language_code
 
-    # Por ahora, mantendremos el texto en español como fallback si las claves no están
-    # (Aunque la función get_text devolvería la clave si no se encuentra)
-    # Esto es temporal hasta añadir todas las traducciones
-    temp_message_text_es = (
-        "Selecciona un área de interés:\n\n"
-        "🧠 **Entender DPDR:** Una explicación tranquilizadora sobre qué es y por qué ocurre.\n"
-        "🌀 **Ansiedad general:** Información sobre la ansiedad, sus mecanismos y cómo se manifiesta.\n"
-        "❤️ **Explicar a Otros:** Ayuda para describir tu experiencia (DPDR o ansiedad) a familiares y amigos.\n"
-        "🩺 **Síntomas:** Un repaso a los síntomas comunes y qué pueden indicar.\n"
-        "🧘 **Ejercicios:** Técnicas y ejercicios prácticos para manejar DPDR y ansiedad.\n"
-        "📚 **Recursos:** Enlaces, libros y otros materiales de apoyo."
-    )
-    # Usar el texto español temporalmente
-    await update.message.reply_text(
-        temp_message_text_es, 
-        reply_markup=reply_markup
-    )
+    keyboard = [
+        [InlineKeyboardButton(get_text('faq_understand_dpdr', lang), callback_data='faq_understand')],
+        [InlineKeyboardButton(get_text('faq_general_anxiety', lang), callback_data='faq_anxiety')],
+        [InlineKeyboardButton(get_text('faq_explain_other', lang), callback_data='faq_explain')],
+        [InlineKeyboardButton(get_text('faq_symptoms', lang), callback_data='faq_symptoms')],
+        [InlineKeyboardButton(get_text('faq_exercises', lang), callback_data='faq_exercises')],
+        [InlineKeyboardButton(get_text('faq_resources', lang), callback_data='faq_resources')]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    # Construcción más segura del texto
+    text_lines = [
+        get_text('faq_area_understand', lang),
+        get_text('faq_area_anxiety', lang),
+        get_text('faq_area_explain', lang),
+        get_text('faq_area_symptoms', lang),
+        get_text('faq_area_exercises', lang),
+        get_text('faq_area_resources', lang),
+        "\n" + get_text('faq_select_area', lang) # Añadir nueva línea antes del prompt
+    ]
+    faq_text = "\n".join(text_lines)
+
+    # Usar ParseMode.MARKDOWN (asegurarse que está importado)
+    await update.message.reply_text(faq_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra opciones para actualizar el plan con botones inline."""
@@ -759,108 +815,130 @@ async def create_stripe_checkout_session(price_id: str, user_id: int) -> str | N
         logging.error(f"Error creando sesión de Stripe Checkout para user {user_id}: {e}")
         return None
 
-async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja los clics en los botones de actualización de plan."""
+async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer() # Obligatorio
+    user = query.from_user
+    user_id = user.id
+    lang = user.language_code or 'en'
+    await query.answer() # Responde al callback
 
-    callback_data = query.data
-    user_id = query.from_user.id
+    plan_type = query.data.split('_')[1] # 'basic' o 'premium'
+    price_id = STRIPE_PRICE_IDS.get(plan_type)
 
-    logging.info(f"Recibido callback_data: {callback_data} de user {user_id}")
-
-    try:
-        parts = callback_data.split('_')
-        if len(parts) < 3 or not parts[0] == 'upgrade':
-            raise ValueError("Formato de callback_data incorrecto")
-        plan_type = parts[1]
-        # Corregir: Usar '_' para unir las partes del ID
-        price_id = '_'.join(parts[2:]) # <-- CORRECCIÓN FINAL
-    except (IndexError, ValueError) as e:
-        logging.error(f"Error parseando callback_data '{callback_data}': {e}")
-        await query.edit_message_text(text="Error procesando la selección. Inténtalo de nuevo.")
+    if not price_id:
+        logging.error(f"Price ID no encontrado para el plan '{plan_type}'")
+        # Traducir mensaje de error
+        error_text = get_text('error_price_id_not_found', lang, default="Error: No se encontró el ID de precio para ese plan.")
+        await query.edit_message_text(error_text)
         return
 
     # <<< --- AÑADIR ESTE LOG --- >>>
     logging.info(f"Extracted Price ID from callback: '{price_id}' for plan {plan_type}")
-    # <<< ----------------------- >>>
+    # <<< ------------------------------------ >>>
 
-    # Editar mensaje para indicar progreso
+    # Editar mensaje para indicar progreso (traducir)
+    progress_text = get_text('upgrade_generating_link', lang, default="Generando enlace de pago seguro...")
+    await query.edit_message_text(progress_text)
+
     try:
-         await query.edit_message_text(text=f"⏳ Creando enlace de pago seguro para el Plan {plan_type.capitalize()}...")
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[
+                {
+                    'price': price_id,
+                    'quantity': 1,
+                },
+            ],
+            mode='subscription',
+            success_url=YOUR_DOMAIN + '/success?session_id={CHECKOUT_SESSION_ID}',
+            cancel_url=YOUR_DOMAIN + '/cancel',
+            customer_email=None, # Opcional: puedes intentar prellenarlo si tienes el email
+            metadata={
+                'telegram_user_id': str(user_id) # Convertir a string para metadata
+            }
+        )
+
+        # Enviar el enlace de pago (traducir mensaje)
+        payment_link_text = get_text('upgrade_payment_link_message', lang, default="Haz clic aquí para completar tu suscripción:")
+        await query.message.reply_text(
+            f"{payment_link_text} <a href=\"{checkout_session.url}\">Pagar Ahora</a>", 
+            parse_mode=ParseMode.HTML, 
+            disable_web_page_preview=True
+        )
+
     except Exception as e:
-        # Ignorar error si el mensaje no se puede editar (ej: demasiado viejo)
-        logging.warning(f"No se pudo editar mensaje para callback {query.id}: {e}")
-
-    checkout_url = await create_stripe_checkout_session(price_id, user_id)
-
-    if checkout_url:
-        keyboard = [[InlineKeyboardButton("➡️ Ir a Pagar a Stripe", url=checkout_url)]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        # Intentar editar de nuevo o enviar nuevo mensaje si falla
-        try:
-            await query.edit_message_text(
-                text=f"¡Listo! Haz clic en el botón para completar tu suscripción al Plan {plan_type.capitalize()} en Stripe:",
-                reply_markup=reply_markup
-            )
-        except Exception as e:
-            logging.warning(f"No se pudo editar mensaje final para callback {query.id}, enviando nuevo: {e}")
-            await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text=f"¡Listo! Haz clic en el botón para completar tu suscripción al Plan {plan_type.capitalize()} en Stripe:",
-                reply_markup=reply_markup
-            )
-    else:
-        try:
-            await query.edit_message_text(text="❌ Lo siento, hubo un error al crear el enlace de pago. Por favor, intenta de nuevo más tarde.")
-        except Exception as e:
-             logging.warning(f"No se pudo editar mensaje de error para callback {query.id}, enviando nuevo: {e}")
-             await context.bot.send_message(
-                chat_id=query.message.chat_id,
-                text="❌ Lo siento, hubo un error al crear el enlace de pago. Por favor, intenta de nuevo más tarde."
-             )
+        logging.error(f"Error al crear la sesión de Stripe para el usuario {user_id}: {e}")
+        # Traducir mensaje de error
+        stripe_error_text = get_text('error_stripe_session', lang, default="Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.")
+        await query.message.reply_text(stripe_error_text)
 
 async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el plan actual y los planes disponibles"""
-    user_id = update.effective_user.id
-    user_data = get_user(user_id)
+    user = update.effective_user
+    user_id = user.id
+    lang = user.language_code or 'en'
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT plan, daily_messages, expiry_date FROM users WHERE user_id = ?", (user_id,))
+    user_data = cursor.fetchone()
+    conn.close()
 
     if not user_data:
-        await update.message.reply_text("No encuentro tus datos. Por favor, usa /start primero.")
+        await update.message.reply_text(get_text('error_no_user_data', lang))
         return
 
-    current_plan_type = user_data['plan']
-    current_plan = SUBSCRIPTION_PLANS[current_plan_type]
-    message_count = user_data['message_count']
-    # token_count = user_data['token_count'] # Podrías añadir esto si lo usas
+    current_plan, daily_messages, expiry_date_str = user_data
+    plan_name = current_plan.capitalize()
+    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0) # Asegurarse de usar MAYUS y manejar clave faltante
 
-    message = f"📊 Tu plan actual: **{current_plan['name']}**\n"
-    message += f"✉️ Mensajes usados hoy: {message_count}/{current_plan['daily_messages']}\n"
-    # message += f"🔢 Tokens usados hoy: {token_count}/{current_plan['tokens_per_day']}\n" # Descomentar si usas tokens
+    expiry_date_formatted = "N/A"
+    if expiry_date_str and current_plan.upper() != 'FREE': # Comparar con MAYUS
+        try:
+            # Intentar parsear con el formato ISO 8601 que incluye zona horaria
+            expiry_date = datetime.fromisoformat(expiry_date_str.replace('Z', '+00:00'))
+            expiry_date_formatted = expiry_date.strftime('%d-%m-%Y') # Formato DD-MM-YYYY
+        except ValueError:
+            # Si falla, intentar con el formato antiguo DD-MM-YYYY (si aplica)
+            try:
+                expiry_date = datetime.strptime(expiry_date_str, '%d-%m-%Y')
+                expiry_date_formatted = expiry_date.strftime('%d-%m-%Y')
+            except ValueError:
+                logging.error(f"Error al parsear la fecha de expiración '{expiry_date_str}' para el usuario {user_id}")
+                # Usar una clave de locale específica para el error de fecha si existe, o una genérica
+                expiry_date_formatted = get_text('plan_expiry_error', lang, default="Fecha inválida")
 
-    if current_plan_type != "FREE" and user_data['expiry_date']:
-        expiry = datetime.fromisoformat(user_data['expiry_date'])
-        message += f"📅 Tu suscripción vence el: {expiry.strftime('%d/%m/%Y')}\n"
-
-    message += "\n💡 Planes disponibles:\n\n"
-    message += "FREE:\n"
-    message += "- Plan básico gratuito\n"
-    message += "- 3 mensajes/día\n\n"
-    message += "BASIC:\n"
-    message += "- Para uso regular\n"
-    message += "- 10 mensajes/día\n"
-    message += "- Precio: 2.99€/mes\n\n"
-    message += "PREMIUM:\n"
-    message += "- Para uso intensivo\n"
-    message += "- 20 mensajes/día\n"
-    message += "- Precio: 6.99€/mes\n\n"
+    plan_info_title = get_text('plan_title', lang)
+    plan_info_name = f"**{plan_name}**"
+    plan_info_messages = f"{get_text('plan_messages_today', lang)} {daily_messages}/{plan_limit}"
     
-    if current_plan_type == "FREE":
-        message += "🌟 Usa /upgrade para mejorar tu plan y obtener más mensajes diarios."
-    else:
-        message += "🌟 Puedes usar /upgrade si deseas cambiar tu plan."
+    plan_info_expires = ""
+    if current_plan.upper() != 'FREE': # Comparar con MAYUS
+        plan_info_expires = get_text('plan_expires', lang).format(expiry_date=expiry_date_formatted)
 
-    await update.message.reply_text(message, parse_mode='Markdown')
+    available_plans_title = get_text('plan_available_title', lang)
+    
+    # Obtener precios formateados de SUBSCRIPTION_PLANS
+    basic_price = SUBSCRIPTION_PLANS.get('BASIC', {}).get('price', 'N/A')
+    premium_price = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('price', 'N/A')
+
+    plan_free_desc = get_text('plan_free_desc', lang).format(limit=SUBSCRIPTION_PLANS.get('FREE', {}).get('daily_messages', 0))
+    plan_basic_desc = get_text('plan_basic_desc', lang).format(limit=SUBSCRIPTION_PLANS.get('BASIC', {}).get('daily_messages', 0), price=basic_price)
+    plan_premium_desc = get_text('plan_premium_desc', lang).format(limit=SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('daily_messages', 0), price=premium_price)
+
+    if current_plan.upper() == 'FREE': # Comparar con MAYUS
+        upgrade_cta = get_text('plan_upgrade_cta_free', lang)
+    else:
+        upgrade_cta = get_text('plan_upgrade_cta_paid', lang)
+
+    full_message = (
+        f"{plan_info_title}\n{plan_info_name}\n{plan_info_messages}\n{plan_info_expires}\n\n"
+        f"{available_plans_title}\n"
+        f"{plan_free_desc}\n"
+        f"{plan_basic_desc}\n"
+        f"{plan_premium_desc}\n\n"
+        f"{upgrade_cta}"
+    )
+
+    await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
 
 # --- Funciones de Admin ---
 async def admin_user_info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -897,9 +975,6 @@ async def admin_user_info_command(update: Update, context: ContextTypes.DEFAULT_
     message += f"👤 **ID:** `{target_user_id}`\n"
     message += f"🏷️ **Plan:** {current_plan['name']} (`{current_plan_type}`)\n"
     message += f"✉️ **Mensajes Hoy:** {message_count}/{current_plan['daily_messages']}\n"
-    # Añadir tokens si se implementa
-    # token_count = user_data['token_count']
-    # message += f"🔢 **Tokens Hoy:** {token_count}/{current_plan['tokens_per_day']}\n"
     message += f"🔄 **Último Reseteo:** {last_reset}\n"
 
     if user_data['expiry_date']:
@@ -1069,121 +1144,192 @@ async def admin_list_users_command(update: Update, context: ContextTypes.DEFAULT
 
 # --- Funciones para la Conversación "Explicar a Otros" ---
 async def explain_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Punto de entrada para la conversación 'Explicar a Otros'."""
-    # Podríamos verificar límites aquí también si queremos que cuente como mensaje
-    # user_id = update.effective_user.id
-    # update_user_usage(user_id, message_increment=1)
-    await update.message.reply_text(
-        "Entendido. A veces es difícil poner en palabras lo que sentimos. 😊\n\n"
-        "¿Sobre qué te gustaría que prepare una explicación sencilla para tus familiares o amigos?\n"
-        "Por ejemplo: 'DPDR', 'ansiedad', 'sentirme irreal', 'ataques de pánico'..."
-    )
+    """Inicia la conversación para explicar algo a otros."""
+    user = update.effective_user
+    lang = user.language_code or 'en'
+    prompt_text = get_text('explain_entry_prompt', lang, default="Claro, puedo ayudarte con eso. ¿Sobre qué tema específico (DPDR, ansiedad, un síntoma concreto, etc.) te gustaría que preparara una explicación sencilla para compartir?")
+    cancel_instruction = get_text('explain_cancel_instruction', lang, default="(Puedes escribir /cancel para detener esto en cualquier momento)")
+    await update.message.reply_text(f"{prompt_text}\n\n{cancel_instruction}")
     return ASK_EXPLAIN_TARGET
 
 async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Recibe el tema que el usuario quiere explicar y genera la respuesta."""
+    """Recibe el tema a explicar y genera la explicación."""
+    user = update.effective_user
+    user_id = user.id
+    lang = user.language_code or 'en'
     user_topic = update.message.text
-    user_id = update.effective_user.id
+
+    # Verificar límites antes de procesar
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT plan, daily_messages FROM users WHERE user_id = ?", (user_id,))
+    user_data = cursor.fetchone()
     
-    # Incrementar contador aquí, ya que es una interacción significativa
-    update_user_usage(user_id, message_increment=1) 
-    # (Habría que verificar límites aquí si no se hizo en explain_entry)
+    if not user_data:
+        await update.message.reply_text(get_text('error_no_user_data', lang))
+        conn.close()
+        return ConversationHandler.END
+        
+    current_plan, daily_messages = user_data
+    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
-    await update.message.reply_text("Vale, preparando una explicación sobre '{}'... ".format(user_topic))
+    if daily_messages >= plan_limit:
+        plan_name = current_plan.capitalize()
+        limit_msg_1 = get_text('limit_reached_1', lang)
+        limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
+        limit_cta = get_text('limit_reached_cta', lang)
+        full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
+        await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+        conn.close()
+        return ConversationHandler.END
+        
+    # Incrementar contador si no se alcanzó el límite
+    cursor.execute("UPDATE users SET daily_messages = daily_messages + 1 WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()
 
+    # Recuperar cliente y thread_id (similar a handle_message)
+    client = context.user_data.get('openai_client')
+    current_thread_id = context.user_data.get('openai_thread_id')
+
+    if not client or not current_thread_id:
+        logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id} en explain_conv. Reintentando.")
+        conn = get_db_connection() 
+        cursor = conn.cursor()
+        cursor.execute("SELECT openai_thread_id FROM users WHERE user_id = ?", (user_id,))
+        db_thread_data = cursor.fetchone()
+        conn.close()
+        
+        client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
+        current_thread_id = db_thread_data[0] if db_thread_data else None
+        
+        if not current_thread_id:
+            logging.info(f"Creando nuevo thread para {user_id} dentro de explain_target_received.")
+            thread = client.beta.threads.create()
+            current_thread_id = thread.id
+            conn = get_db_connection() # Reabrir conexión
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
+            conn.commit()
+            conn.close()
+            
+        context.user_data['openai_client'] = client
+        context.user_data['openai_thread_id'] = current_thread_id
+
+    # Mensaje de espera (traducir)
+    wait_message = get_text('explain_wait', lang, default="Vale, preparando una explicación sobre '{topic}'... Dame un momento.").format(topic=user_topic)
+    await update.message.reply_text(wait_message)
+
+    # Instrucción para la IA (sin traducir, es para la IA)
     explain_instruction = (
         f"Actúa como alguien que ayuda a explicar condiciones de salud mental a familiares y amigos de forma muy sencilla y empática. "
         f"El usuario quiere explicar '{user_topic}'. Genera un texto corto (máximo 3-4 párrafos) que el usuario pueda compartir. "
         f"Debe ser fácil de entender para alguien sin conocimientos previos, usando analogías si es posible, validando la experiencia "
         f"y enfocándose en cómo pueden apoyar. Evita jerga técnica compleja. Si el tema es vago, intenta dar una explicación general útil."
     )
+    # Añadir instrucción de idioma y limpieza
     final_instructions = explain_instruction + (
-        " Responde en el mismo idioma que el usuario. "
+        f" Responde siempre en {lang}. " # Asegurar el idioma de respuesta
         "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
         "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
     )
 
-    # <<< Inicio Selección Dinámica de Modelo >>>
-    user_topic_lower = user_topic.lower()
-    use_gpt4o = False
-    detected_keyword = None
-    for keyword in CRITICAL_KEYWORDS:
-        if re.search(r'\b' + re.escape(keyword) + r'\b', user_topic_lower):
-            use_gpt4o = True
-            detected_keyword = keyword
-            break 
-
-    model_to_use = "gpt-4o" if use_gpt4o else "gpt-4o-mini"
-    if use_gpt4o:
-        logging.warning(f"Palabra clave crítica '{detected_keyword}' detectada en tema de explicación {user_id}. Usando modelo gpt-4o.")
-    else:
-        logging.info(f"No se detectaron palabras clave críticas en tema de explicación. Usando modelo {model_to_use}.")
-    # <<< Fin Selección Dinámica de Modelo >>>
-
-    assistant_response = ""
+    # Lógica de OpenAI (similar a handle_message)
     try:
-        user_data = get_user(user_id)
-        current_thread_id = user_data.get('thread_id') if user_data and 'thread_id' in user_data else None
-        if not current_thread_id:
-             logging.info(f"DB: No thread_id found for user {user_id} in explain_conv. Creating new one.")
-             thread = client.beta.threads.create()
-             current_thread_id = thread.id
-             update_user_thread_id(user_id, current_thread_id)
-             logging.info(f"DB: Saved new thread_id {current_thread_id} for user {user_id}.")
-        else:
-             logging.info(f"DB: Found existing thread_id for user {user_id}: {current_thread_id}")
+        # Comprobar palabras clave críticas
+        use_gpt4 = False
+        if CHECK_CRITICAL_KEYWORDS:
+            for keyword in CRITICAL_KEYWORDS:
+                 if re.search(r'\b' + re.escape(keyword) + r'\b', user_topic, re.IGNORECASE):
+                    use_gpt4 = True
+                    logging.warning(f"Palabra clave crítica detectada en explicación ({user_topic}) por usuario {user_id}. Usando GPT-4o.")
+                    break
+        # TODO: Implementar selección de modelo cuando esté listo
 
-        logging.info(f"Using thread_id: {current_thread_id} for user {user_id} (Explain Conv)")
-        logging.info(f"Final Instructions (Explain Conv): {final_instructions}")
-
-        message = client.beta.threads.messages.create(
+        # Enviar mensaje al hilo
+        client.beta.threads.messages.create(
             thread_id=current_thread_id,
             role="user",
-            content=f"Generar explicación para familiares/amigos sobre: {user_topic}" # Usar un prompt interno
+            content=f"Generar explicación para familiares/amigos sobre: {user_topic}" # Prompt interno
         )
 
+        # Ejecutar asistente
         run = client.beta.threads.runs.create(
-            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, 
-            model=model_to_use, # <-- Usar modelo seleccionado
-            temperature=0.7, instructions=final_instructions
+            thread_id=current_thread_id, 
+            assistant_id=ASSISTANT_ID, 
+            instructions=final_instructions
+            # model=... # Añadir selección de modelo aquí
         )
-        logging.info(f"Run {run.id} created for thread {current_thread_id} (Explain Conv) using model {model_to_use}")
-        
-        start_time = time.time()
-        completed = False
-        while not completed and (time.time() - start_time) < 300:
-             run_status = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
-             if run_status.status == 'completed': completed = True; break
-             elif run_status.status == 'failed': raise Exception(f"Error del asistente: {run_status.last_error}")
-             time.sleep(2)
-        if not completed: raise TimeoutError("Timeout en la respuesta del asistente")
-        
-        messages = client.beta.threads.messages.list(thread_id=current_thread_id)
-        assistant_response = messages.data[0].content[0].text.value
 
-        # <<< --- LIMPIAR CITAS ANTES DE ENVIAR --- >>>
-        cleaned_response = clean_citations(assistant_response)
-        # <<< ------------------------------------ >>>
+        # Esperar finalización
+        while run.status not in ["completed", "failed", "cancelled", "expired"]:
+            await asyncio.sleep(1)
+            run = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
+            logging.debug(f"Explain Run status for user {user_id}: {run.status}")
+
+        # Procesar respuesta
+        if run.status == "completed":
+            messages = client.beta.threads.messages.list(thread_id=current_thread_id, order="desc", limit=1)
+            assistant_response = messages.data[0].content[0].text.value
+            logging.info(f"Explicación generada para el usuario {user_id}")
+            
+            # Enviar respuesta (traducir plantilla)
+            response_header = get_text('explain_response_header', lang, default="Aquí tienes una propuesta de explicación que puedes compartir o adaptar:")
+            response_footer = get_text('explain_response_footer', lang, default="Espero que sea útil. ¿Puedo ayudarte con algo más?")
+            
+            full_response = f"{response_header}\n\n---\n{assistant_response}\n---\n\n{response_footer}"
+            await update.message.reply_text(full_response)
+
+        else:
+            logging.error(f"La ejecución de explicación falló para {user_id} con estado: {run.status}")
+            error_text = get_text('error_openai_run', lang, default="Lo siento, no pude generar la explicación en este momento.")
+            await update.message.reply_text(error_text)
 
     except Exception as e:
-        logging.error(f"Error processing explain_target for user {user_id}: {str(e)}")
-        cleaned_response = f"Lo siento, hubo un error al generar la explicación: {str(e)}"
+        logging.error(f"Error inesperado al generar explicación para {user_id}: {e}", exc_info=True)
+        error_message = get_text('error_generic', lang).format(error=str(e))
+        await update.message.reply_text(error_message)
 
-    await update.message.reply_text(
-        "Aquí tienes una propuesta de explicación que puedes compartir o adaptar:\n\n---\n"
-        f"{cleaned_response}\n---\n\n"
-        "Espero que sea útil. ¿Puedo ayudarte con algo más?"
-    )
     return ConversationHandler.END
 
 async def explain_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancela la conversación actual."""
-    await update.message.reply_text(
-        "De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras."
-    )
+    user = update.effective_user
+    lang = user.language_code or 'en'
+    cancel_message = get_text('explain_cancel_confirmation', lang, default="De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras.")
+    await update.message.reply_text(cancel_message)
     return ConversationHandler.END
 
 # --- Fin Funciones Conversación ---
+
+async def feedback_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    user = query.from_user
+    lang = user.language_code or 'en'
+    await query.answer() # Responde al callback para que el botón deje de cargar
+
+    rating = 'positive' if query.data == 'feedback_useful' else 'negative'
+    last_message_info = context.user_data.get(user.id, {}).get('last_assistant_message_info')
+
+    if last_message_info:
+        add_feedback(
+            user_id=user.id,
+            user_query=last_message_info['user_query'],
+            assistant_response=last_message_info['assistant_response'],
+            rating=rating,
+            assistant_id=ASSISTANT_ID,
+            thread_id=last_message_info['thread_id'],
+            run_id=last_message_info['run_id']
+        )
+        feedback_response_key = 'feedback_thanks_positive' if rating == 'positive' else 'feedback_thanks_negative'
+        feedback_text = get_text(feedback_response_key, lang)
+        await query.edit_message_reply_markup(reply_markup=None) # Eliminar botones
+        await query.message.reply_text(feedback_text) # Enviar mensaje de agradecimiento
+        del context.user_data[user.id]['last_assistant_message_info'] # Limpiar la info guardada
+    else:
+        # Si no hay info del último mensaje, simplemente agradecer genéricamente
+        await query.edit_message_reply_markup(reply_markup=None) # Eliminar botones
+        await query.message.reply_text(get_text('feedback_thanks_generic', lang))
 
 def main():
     logging.info("Starting bot...")
@@ -1233,6 +1379,10 @@ def main():
         # --- Añadir Handler para botones de Upgrade --- <--- MOVIDO AQUÍ
         application.add_handler(CallbackQueryHandler(upgrade_button_handler, pattern='^upgrade_'))
         # --------------------------------------------
+
+        # --- Añadir Handler para botones de Feedback ---
+        application.add_handler(CallbackQueryHandler(feedback_callback, pattern='^feedback_'))
+        # -------------------------------------------
 
         # Handler general de mensajes (al final)
         # (Debe ignorar el texto de los botones que inician conversaciones)

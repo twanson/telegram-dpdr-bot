@@ -88,9 +88,12 @@ def stripe_webhook():
         abort(400)
         return '', 400
     except Exception as e:
-        logging.error(f"[Webhook] Error genérico en construct_event: {e}")
-        abort(500)
-        return '', 500
+        logging.error(f"[Webhook] Error GENÉRICO INESPERADO en construct_event: {e}", exc_info=True)
+        event = None
+
+    if event is None:
+        logging.error("[Webhook] Evento es None después del bloque de verificación. No se procesará más.")
+        return jsonify({'status': 'verification_failed_or_error'}), 200
 
     logging.info(f"[Webhook] Verificando tipo de evento: {event.get('type')}")
     if event.get('type') == 'checkout.session.completed':

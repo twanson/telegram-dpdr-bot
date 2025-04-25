@@ -46,6 +46,24 @@ STRIPE_PRICE_ID_BASIC = os.getenv('STRIPE_PRICE_ID_BASIC')
 STRIPE_PRICE_ID_PREMIUM = os.getenv('STRIPE_PRICE_ID_PREMIUM')
 YOUR_DOMAIN = os.getenv('YOUR_DOMAIN', 'http://localhost:8080') # Dominio base
 
+# Lista de IDs de administradores
+ADMIN_IDS = [
+    23684095  # Admin principal
+]
+
+# Palabras clave para usar GPT-4o por seguridad
+CRITICAL_KEYWORDS = [
+    # Español
+    "crisis", "ayuda", "urgente", "no puedo más", "matarme", 
+    "suicidio", "suicida", "hacerme daño", "peligro", "sin control", 
+    "desesperado", "insoportable", "morir", "autolesión", "autolesionarme",
+    "acabar con todo", "desaparecer", "no quiero vivir",
+    # Inglés (básico por si acaso)
+    "crisis", "help", "urgent", "kill myself", "suicide", "suicidal", 
+    "harm myself", "danger", "out of control", "desperate", "dying", 
+    "self-harm", "end it all", "disappear", "don't want to live"
+]
+
 # Configurar la clave API de Stripe globalmente
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
@@ -78,11 +96,6 @@ SUBSCRIPTION_PLANS = {
         "price": 6.99
     }
 }
-
-# Lista de IDs de administradores
-ADMIN_IDS = [
-    23684095  # Admin principal
-]
 
 # --- Función Auxiliar para Limpiar Citas ---
 def clean_citations(text: str) -> str:
@@ -469,6 +482,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.info(f"Using thread_id: {current_thread_id} for user {user_id}")
         logging.info(f"Final Instructions: {final_instructions}")
 
+        # <<< Inicio Selección Dinámica de Modelo >>>
+        user_text_lower = user_text.lower()
+        use_gpt4o = False
+        detected_keyword = None
+        for keyword in CRITICAL_KEYWORDS:
+            # Usar word boundaries para evitar coincidencias parciales no deseadas (ej: 'control' en 'autocontrol')
+            # Nota: Esto requiere importar 're' si no está ya importado
+            if re.search(r'\b' + re.escape(keyword) + r'\b', user_text_lower):
+                use_gpt4o = True
+                detected_keyword = keyword
+                break 
+
+        model_to_use = "gpt-4o" if use_gpt4o else "gpt-4o-mini"
+        if use_gpt4o:
+            logging.warning(f"Palabra clave crítica '{detected_keyword}' detectada en mensaje de user {user_id}. Usando modelo gpt-4o por seguridad.")
+        else:
+            logging.info(f"No se detectaron palabras clave críticas. Usando modelo {model_to_use}.")
+        # <<< Fin Selección Dinámica de Modelo >>>
+
         message = client.beta.threads.messages.create(
             thread_id=current_thread_id,
             role="user",
@@ -479,11 +511,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         run = client.beta.threads.runs.create(
             thread_id=current_thread_id,
             assistant_id=ASSISTANT_ID,
-            model="gpt-4o",
+            model=model_to_use, # <-- Usar modelo seleccionado
             temperature=0.7,
             instructions=final_instructions
         )
-        logging.info(f"Run {run.id} created for thread {current_thread_id}")
+        logging.info(f"Run {run.id} created for thread {current_thread_id} using model {model_to_use}")
 
         await update.message.reply_text("Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.")
 
@@ -967,6 +999,23 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
     )
 
+    # <<< Inicio Selección Dinámica de Modelo >>>
+    user_topic_lower = user_topic.lower()
+    use_gpt4o = False
+    detected_keyword = None
+    for keyword in CRITICAL_KEYWORDS:
+        if re.search(r'\b' + re.escape(keyword) + r'\b', user_topic_lower):
+            use_gpt4o = True
+            detected_keyword = keyword
+            break 
+
+    model_to_use = "gpt-4o" if use_gpt4o else "gpt-4o-mini"
+    if use_gpt4o:
+        logging.warning(f"Palabra clave crítica '{detected_keyword}' detectada en tema de explicación {user_id}. Usando modelo gpt-4o.")
+    else:
+        logging.info(f"No se detectaron palabras clave críticas en tema de explicación. Usando modelo {model_to_use}.")
+    # <<< Fin Selección Dinámica de Modelo >>>
+
     assistant_response = ""
     try:
         user_data = get_user(user_id)
@@ -990,9 +1039,11 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         )
 
         run = client.beta.threads.runs.create(
-            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, model="gpt-4o",
+            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, 
+            model=model_to_use, # <-- Usar modelo seleccionado
             temperature=0.7, instructions=final_instructions
         )
+        logging.info(f"Run {run.id} created for thread {current_thread_id} (Explain Conv) using model {model_to_use}")
         
         start_time = time.time()
         completed = False

@@ -637,14 +637,19 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     try:
         parts = callback_data.split('_')
-        if len(parts) < 3 or not parts[0] == 'upgrade': # Validación básica
+        if len(parts) < 3 or not parts[0] == 'upgrade': # Necesita al menos 'upgrade', 'type', 'price', '...'
             raise ValueError("Formato de callback_data incorrecto")
         plan_type = parts[1]
-        price_id = parts[2]
+        # Corregir: Unir desde el tercer elemento ('price') en adelante
+        price_id = ''.join(parts[2:]) # <-- CORRECCIÓN
     except (IndexError, ValueError) as e:
         logging.error(f"Error parseando callback_data '{callback_data}': {e}")
         await query.edit_message_text(text="Error procesando la selección. Inténtalo de nuevo.")
         return
+
+    # <<< --- AÑADIR ESTE LOG --- >>>
+    logging.info(f"Extracted Price ID from callback: '{price_id}' for plan {plan_type}")
+    # <<< ----------------------- >>>
 
     # Editar mensaje para indicar progreso
     try:

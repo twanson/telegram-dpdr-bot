@@ -5,19 +5,21 @@ import time
 import sys
 import sqlite3 # <-- Añadir importación
 import re # <--- Añadir import
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, 
     CommandHandler, 
     MessageHandler, 
     filters,
     ContextTypes,
-    ConversationHandler
+    ConversationHandler,
+    CallbackQueryHandler
 )
 from openai import OpenAI
 from dotenv import load_dotenv
 import httpx
 from datetime import datetime, date, timedelta # <-- Añadir timedelta
+import stripe # <-- Añadir import
 
 # Configurar logging más detallado
 logging.basicConfig(
@@ -37,6 +39,18 @@ ASSISTANT_ID = os.getenv('ASSISTANT_ID')
 
 # Configuración de la base de datos SQLite <-- NUEVO
 DB_PATH = '/data/dpdr_bot.db' # <-- Añadido para usar el volumen persistente
+
+# Nuevas variables de Stripe
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_PRICE_ID_BASIC = os.getenv('STRIPE_PRICE_ID_BASIC')
+STRIPE_PRICE_ID_PREMIUM = os.getenv('STRIPE_PRICE_ID_PREMIUM')
+YOUR_DOMAIN = os.getenv('YOUR_DOMAIN', 'http://localhost:8080') # Dominio base
+
+# Configurar la clave API de Stripe globalmente
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+else:
+    logging.warning("STRIPE_SECRET_KEY no encontrada. La integración con Stripe no funcionará.")
 
 # Inicializamos el cliente de OpenAI
 client = OpenAI(
@@ -553,23 +567,119 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra opciones para actualizar el plan"""
+    """Muestra opciones para actualizar el plan con botones inline."""
+    if not STRIPE_PRICE_ID_BASIC or not STRIPE_PRICE_ID_PREMIUM:
+        await update.message.reply_text("Lo siento, la opción de mejora de plan no está configurada correctamente.")
+        logging.error("IDs de precios de Stripe no configurados en variables de entorno.")
+        return
+        
     keyboard = [
-        ["💎 Plan Basic - 2.99€/mes"],
-        ["👑 Plan Premium - 6.99€/mes"],
-        ["❌ Cancelar"]
+        [
+            InlineKeyboardButton(f"💎 Plan Basic - {SUBSCRIPTION_PLANS['BASIC']['price']}€/mes", callback_data=f"upgrade_basic_{STRIPE_PRICE_ID_BASIC}"),
+        ],
+        [
+            InlineKeyboardButton(f"👑 Plan Premium - {SUBSCRIPTION_PLANS['PREMIUM']['price']}€/mes", callback_data=f"upgrade_premium_{STRIPE_PRICE_ID_PREMIUM}"),
+        ]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True)
-    await update.message.reply_text(
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    message_text = (
         "Selecciona el plan al que quieres actualizar:\n\n"
-        "💎 Plan Basic (2.99€/mes):\n"
-        "- 10 mensajes/día\n"
-        "- 5000 tokens/día\n\n"
-        "👑 Plan Premium (6.99€/mes):\n"
-        "- 20 mensajes/día\n"
-        "- 10000 tokens/día",
-        reply_markup=reply_markup
+        f"💎 **Plan Basic ({SUBSCRIPTION_PLANS['BASIC']['price']}€/mes):**\n"
+        f"- {SUBSCRIPTION_PLANS['BASIC']['daily_messages']} mensajes/día\n\n"
+        f"👑 **Plan Premium ({SUBSCRIPTION_PLANS['PREMIUM']['price']}€/mes):**\n"
+        f"- {SUBSCRIPTION_PLANS['PREMIUM']['daily_messages']} mensajes/día\n\n"
+        "*Serás redirigido a Stripe para completar el pago seguro.*"
     )
+    await update.message.reply_text(message_text, reply_markup=reply_markup)
+
+async def create_stripe_checkout_session(price_id: str, user_id: int) -> str | None:
+    """Crea una sesión de Checkout en Stripe y devuelve la URL."""
+    if not stripe.api_key:
+        logging.error("Intento de crear sesión de Stripe sin API key configurada.")
+        return None
+        
+    try:
+        # Verificar que YOUR_DOMAIN no es el valor por defecto si no estamos en debug local
+        # Esto es una heurística, idealmente se controlaría con una variable de entorno diferente
+        success_url_base = YOUR_DOMAIN
+        cancel_url_base = YOUR_DOMAIN
+        # Podríamos añadir lógica para usar una URL pública real si está disponible
+        
+        checkout_session = stripe.checkout.Session.create(
+            line_items=[
+                {
+                    'price': price_id,
+                    'quantity': 1,
+                },
+            ],
+            mode='subscription',
+            success_url=f'{success_url_base}/stripe-success?session_id={{CHECKOUT_SESSION_ID}}', 
+            cancel_url=f'{cancel_url_base}/stripe-cancel',
+            client_reference_id=str(user_id),
+            metadata={'telegram_user_id': str(user_id)} # Incluir en metadata también
+        )
+        logging.info(f"Sesión de Stripe Checkout creada para user {user_id}, price {price_id}: {checkout_session.id}")
+        return checkout_session.url
+    except Exception as e:
+        logging.error(f"Error creando sesión de Stripe Checkout para user {user_id}: {e}")
+        return None
+
+async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Maneja los clics en los botones de actualización de plan."""
+    query = update.callback_query
+    await query.answer() # Obligatorio
+
+    callback_data = query.data
+    user_id = query.from_user.id
+
+    logging.info(f"Recibido callback_data: {callback_data} de user {user_id}")
+
+    try:
+        parts = callback_data.split('_')
+        if len(parts) < 3 or not parts[0] == 'upgrade': # Validación básica
+            raise ValueError("Formato de callback_data incorrecto")
+        plan_type = parts[1]
+        price_id = parts[2]
+    except (IndexError, ValueError) as e:
+        logging.error(f"Error parseando callback_data '{callback_data}': {e}")
+        await query.edit_message_text(text="Error procesando la selección. Inténtalo de nuevo.")
+        return
+
+    # Editar mensaje para indicar progreso
+    try:
+         await query.edit_message_text(text=f"⏳ Creando enlace de pago seguro para el Plan {plan_type.capitalize()}...")
+    except Exception as e:
+        # Ignorar error si el mensaje no se puede editar (ej: demasiado viejo)
+        logging.warning(f"No se pudo editar mensaje para callback {query.id}: {e}")
+
+    checkout_url = await create_stripe_checkout_session(price_id, user_id)
+
+    if checkout_url:
+        keyboard = [[InlineKeyboardButton("➡️ Ir a Pagar a Stripe", url=checkout_url)]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        # Intentar editar de nuevo o enviar nuevo mensaje si falla
+        try:
+            await query.edit_message_text(
+                text=f"¡Listo! Haz clic en el botón para completar tu suscripción al Plan {plan_type.capitalize()} en Stripe:",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logging.warning(f"No se pudo editar mensaje final para callback {query.id}, enviando nuevo: {e}")
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=f"¡Listo! Haz clic en el botón para completar tu suscripción al Plan {plan_type.capitalize()} en Stripe:",
+                reply_markup=reply_markup
+            )
+    else:
+        try:
+            await query.edit_message_text(text="❌ Lo siento, hubo un error al crear el enlace de pago. Por favor, intenta de nuevo más tarde.")
+        except Exception as e:
+             logging.warning(f"No se pudo editar mensaje de error para callback {query.id}, enviando nuevo: {e}")
+             await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text="❌ Lo siento, hubo un error al crear el enlace de pago. Por favor, intenta de nuevo más tarde."
+             )
 
 async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el plan actual y los planes disponibles"""
@@ -959,6 +1069,10 @@ def main():
         
         # Añadir PRIMERO el ConversationHandler
         application.add_handler(explain_conv_handler)
+
+        # --- Añadir Handler para botones de Upgrade --- <--- MOVIDO AQUÍ
+        application.add_handler(CallbackQueryHandler(upgrade_button_handler, pattern='^upgrade_'))
+        # --------------------------------------------
 
         # Handler general de mensajes (al final)
         # (Debe ignorar el texto de los botones que inician conversaciones)

@@ -207,7 +207,56 @@ async def stripe_webhook(): # <<< Hacer la función async >>>
     logging.info("[Webhook] Enviando respuesta 200 OK a Stripe.")
     return jsonify({'status': 'received'}), 200
 
+# --- Rutas de Redirección de Stripe --- 
+@app.route('/stripe-success')
+def stripe_success():
+    # Podrías pasar el session_id como parámetro si quisieras personalizar el mensaje,
+    # pero por ahora un mensaje genérico es suficiente.
+    # session_id = request.args.get('session_id')
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Pago Exitoso</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { font-family: sans-serif; text-align: center; padding: 40px; background-color: #f0fdf4; color: #14532d; }
+            h1 { color: #16a34a; }
+        </style>
+    </head>
+    <body>
+        <h1>¡Pago Completado con Éxito!</h1>
+        <p>Tu suscripción ha sido activada.</p>
+        <p>Ya puedes cerrar esta ventana y volver a tu chat de Telegram.</p>
+        <p>🎉</p>
+    </body>
+    </html>
+    """
+
+@app.route('/stripe-cancel')
+def stripe_cancel():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Pago Cancelado</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { font-family: sans-serif; text-align: center; padding: 40px; background-color: #fffbeb; color: #713f12; }
+            h1 { color: #facc15; }
+        </style>
+    </head>
+    <body>
+        <h1>Pago Cancelado</h1>
+        <p>El proceso de pago ha sido cancelado.</p>
+        <p>Puedes cerrar esta ventana y volver a Telegram si deseas intentarlo de nuevo.</p>
+        <p>😅</p>
+    </body>
+    </html>
+    """
+# --- Fin Rutas de Redirección ---
+
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8080)) # Cambiado default a 8080 por si acaso
+    port = int(os.environ.get('PORT', 8080))
     logging.info(f"Iniciando servidor Flask en el puerto {port}")
     app.run(host='0.0.0.0', port=port) 

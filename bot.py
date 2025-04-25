@@ -345,18 +345,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Puedo ayudarte con información y consejos basados en guías y recursos especializados.\n\n"
         "📌 **Comandos disponibles:**\n"
         "/faq - Ver categorías principales\n"
-        "/help - Ver todos los comandos\n"
         "/plan - Ver tu plan actual y límites\n"
-        "/reset - Reiniciar conversación\n\n"
+        "/upgrade - Ver o mejorar tu plan 🌟\n"
+        "/reset - Reiniciar conversación\n"
+        "/help - Ver todos los comandos\n\n"
         "¿En qué puedo ayudarte?\n"
         "---\n"
         "Hi! I'm an assistant specializing in the symptoms of DPDR anxiety (depersonalization and derealization). "
         "I can help you with information and advice based on specialized guides and resources.\n\n"
         "📌 **Available commands:**\n"
         "/faq - View main categories\n"
-        "/help - View all commands\n"
         "/plan - View your current plan and limits\n"
-        "/reset - Restart conversation\n\n"
+        "/upgrade - View or upgrade your plan 🌟\n"
+        "/reset - Restart conversation\n"
+        "/help - View all commands\n\n"
         "How can I help you?"
     )
     await update.message.reply_text(welcome_message)
@@ -569,9 +571,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Comandos disponibles:\n"
         "/start - Inicia el bot\n"
-        "/help - Muestra esta ayuda\n"
-        "/reset - Reinicia tu conversación\n"
-        "\nPuedes preguntarme cualquier cosa sobre DPDR y despersonalización."
+        "/faq - Muestra categorías de ayuda principales\n"
+        "/plan - Muestra tu plan de suscripción actual y límites\n"
+        "/upgrade - Muestra las opciones para mejorar tu plan 🌟\n"
+        "/reset - Reinicia tu conversación con el bot\n"
+        "/help - Muestra esta lista de comandos\n"
+        "\nTambién puedes escribirme directamente tu pregunta o seleccionar una opción de /faq."
     )
 
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -735,8 +740,8 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message_count = user_data['message_count']
     # token_count = user_data['token_count'] # Podrías añadir esto si lo usas
 
-    message = f"📊 Tu plan actual: {current_plan['name']}\n"
-    message += f"📝 Mensajes usados hoy: {message_count}/{current_plan['daily_messages']}\n"
+    message = f"📊 Tu plan actual: **{current_plan['name']}**\n"
+    message += f"✉️ Mensajes usados hoy: {message_count}/{current_plan['daily_messages']}\n"
     # message += f"🔢 Tokens usados hoy: {token_count}/{current_plan['tokens_per_day']}\n" # Descomentar si usas tokens
 
     if current_plan_type != "FREE" and user_data['expiry_date']:
@@ -757,9 +762,11 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message += "- Precio: 6.99€/mes\n\n"
     
     if current_plan_type == "FREE":
-        message += "\n🌟 Usa /upgrade para mejorar tu plan"
-    
-    await update.message.reply_text(message)
+        message += "🌟 Usa /upgrade para mejorar tu plan y obtener más mensajes diarios."
+    else:
+        message += "🌟 Puedes usar /upgrade si deseas cambiar tu plan."
+
+    await update.message.reply_text(message, parse_mode='Markdown')
 
 # --- Funciones de Admin ---
 async def admin_user_info_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

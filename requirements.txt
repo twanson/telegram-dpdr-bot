@@ -4,3 +4,4 @@ python-dotenv
 requests==2.31.0
 httpx
 stripe
+flask

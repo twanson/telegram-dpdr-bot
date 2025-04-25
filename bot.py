@@ -479,7 +479,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         run = client.beta.threads.runs.create(
             thread_id=current_thread_id,
             assistant_id=ASSISTANT_ID,
-            model="gpt-4o-mini",
+            model="gpt-4o",
             temperature=0.7,
             instructions=final_instructions
         )
@@ -990,7 +990,7 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         )
 
         run = client.beta.threads.runs.create(
-            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, model="gpt-4o-mini",
+            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, model="gpt-4o",
             temperature=0.7, instructions=final_instructions
         )
         

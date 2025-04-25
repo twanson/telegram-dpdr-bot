@@ -479,13 +479,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         run = client.beta.threads.runs.create(
             thread_id=current_thread_id,
             assistant_id=ASSISTANT_ID,
-            model="gpt-4o",
+            model="gpt-4o-mini",
             temperature=0.7,
             instructions=final_instructions
         )
         logging.info(f"Run {run.id} created for thread {current_thread_id}")
 
-        await update.message.reply_text("Procesando tu pregunta, por favor espera...")
+        await update.message.reply_text("Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.")
 
         start_time = time.time()
         completed = False
@@ -990,7 +990,7 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         )
 
         run = client.beta.threads.runs.create(
-            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, model="gpt-4o",
+            thread_id=current_thread_id, assistant_id=ASSISTANT_ID, model="gpt-4o-mini",
             temperature=0.7, instructions=final_instructions
         )
         

@@ -51,17 +51,20 @@ ADMIN_IDS = [
     23684095  # Admin principal
 ]
 
-# Palabras clave para usar GPT-4o por seguridad
+# Palabras clave para usar GPT-4o por seguridad (Versión Refinada)
 CRITICAL_KEYWORDS = [
-    # Español
-    "crisis", "ayuda", "urgente", "no puedo más", "matarme", 
-    "suicidio", "suicida", "hacerme daño", "peligro", "sin control", 
-    "desesperado", "insoportable", "morir", "autolesión", "autolesionarme",
-    "acabar con todo", "desaparecer", "no quiero vivir",
-    # Inglés (básico por si acaso)
-    "crisis", "help", "urgent", "kill myself", "suicide", "suicidal", 
-    "harm myself", "danger", "out of control", "desperate", "dying", 
-    "self-harm", "end it all", "disappear", "don't want to live"
+    # Palabras/Frases de Alto Riesgo (Español)
+    "matarme", "suicidio", "suicida", "suicidarme", 
+    "hacerme daño", "autolesión", "autolesionarme", "autolesion",
+    "acabar con todo", "no quiero vivir", "desaparecer",
+    "no puedo más", # (Umbral alto de desesperación)
+    # "cortarme", # (Considerar si añadir o no, puede ser específico de autolesión) 
+
+    # Palabras/Frases de Alto Riesgo (Inglés - Básico)
+    "kill myself", "suicide", "suicidal", 
+    "harm myself", "self-harm", "self harm", 
+    "end it all", "don\'t want to live", "disappear", # Asegurar que el apóstrofo está escapado para Git/Shell si es necesario, pero no en la lista Python.
+    "can\'t take it anymore" # Igual aquí.
 ]
 
 # Configurar la clave API de Stripe globalmente

@@ -3,7 +3,8 @@ import os
 import logging
 import sys
 import json
-import stripe # <-- Añadir import
+import stripe
+import httpx # <-- Añadir import
 from datetime import datetime, timedelta, timezone # <-- Añadir datetime, timedelta, timezone
 from flask import Flask, request, abort, jsonify
 from dotenv import load_dotenv
@@ -31,6 +32,7 @@ except ImportError as e:
 
 # Cargar variables de entorno
 load_dotenv()
+BOT_TOKEN = os.getenv('BOT_TOKEN') # <-- Necesitamos el token aquí
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 # Configurar la clave API de Stripe (necesaria para verificar webhooks si se usa la API)
 # Stripe SDK usa STRIPE_SECRET_KEY automáticamente si está en env vars
@@ -45,12 +47,14 @@ logging.basicConfig(
     stream=sys.stdout
 )
 
-# --- Verificación inicial del Webhook Secret ---
+# --- Verificación inicial del Webhook Secret y BOT_TOKEN ---
 if not STRIPE_WEBHOOK_SECRET:
     logging.critical("¡ERROR CRÍTICO! STRIPE_WEBHOOK_SECRET no está configurado en las variables de entorno. "
                      "El webhook no funcionará de forma segura.")
     # Podrías decidir salir si es absolutamente esencial, aunque Flask seguirá corriendo.
     # sys.exit(1)
+if not BOT_TOKEN:
+    logging.critical("¡ERROR CRÍTICO! BOT_TOKEN no está configurado...")
 # --- Fin Verificación ---
 
 # Crear la aplicación Flask
@@ -60,8 +64,33 @@ app = Flask(__name__)
 def index():
     return "Webhook server is running."
 
+# --- Función auxiliar asíncrona para enviar mensaje ---
+async def send_telegram_message(user_id: int, text: str):
+    if not BOT_TOKEN:
+        logging.error("[TelegramSend] No BOT_TOKEN available.")
+        return
+
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    payload = {
+        'chat_id': user_id,
+        'text': text,
+        'parse_mode': 'Markdown' # Opcional: para formato
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, json=payload, timeout=10)
+            response.raise_for_status() # Lanza excepción si hay error HTTP (4xx o 5xx)
+            logging.info(f"[TelegramSend] Mensaje de confirmación enviado a user {user_id}. Respuesta: {response.status_code}")
+    except httpx.RequestError as exc:
+        logging.error(f"[TelegramSend] Error de red/conexión enviando mensaje a user {user_id}: {exc}")
+    except httpx.HTTPStatusError as exc:
+        logging.error(f"[TelegramSend] Error HTTP enviando mensaje a user {user_id}: {exc.response.status_code} - {exc.response.text}")
+    except Exception as e:
+        logging.error(f"[TelegramSend] Error inesperado enviando mensaje a user {user_id}: {e}", exc_info=True)
+# --- Fin Función auxiliar --- 
+
 @app.route('/webhook/stripe', methods=['POST'])
-def stripe_webhook():
+async def stripe_webhook(): # <<< Hacer la función async >>>
     logging.info("[Webhook] Inicio del procesamiento.")
     payload = request.data
     sig_header = request.headers.get('Stripe-Signature')
@@ -145,6 +174,16 @@ def stripe_webhook():
                            success = update_user_plan(user_id, target_plan, expiry_date_iso)
                            if success:
                                logging.info(f"[Webhook] ✅ update_user_plan retornó éxito para user {user_id}.")
+                               # <<< ENVIAR MENSAJE DE CONFIRMACIÓN >>>
+                               plan_name = SUBSCRIPTION_PLANS.get(target_plan, {}).get('name', target_plan)
+                               expiry_date_formatted = datetime.fromisoformat(expiry_date_iso).strftime('%d/%m/%Y')
+                               confirmation_text = (
+                                   f"¡Felicidades! 🎉 Tu suscripción al **{plan_name}** está activa.\n"
+                                   f"Ahora disfrutas de sus beneficios hasta el **{expiry_date_formatted}**.\n\n"
+                                   f"Puedes usar /plan para ver los detalles."
+                               )
+                               await send_telegram_message(user_id, confirmation_text)
+                               # <<< FIN ENVIAR MENSAJE >>>
                            else:
                                logging.error(f"[Webhook] ❌ update_user_plan retornó fallo para user {user_id}.")
                         else:

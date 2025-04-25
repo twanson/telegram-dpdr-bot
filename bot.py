@@ -67,6 +67,49 @@ CRITICAL_KEYWORDS = [
     "can\'t take it anymore" # Igual aquí.
 ]
 
+# --- Textos para Internacionalización (i18n) --- 
+LOCALES = {
+    'es': {
+        # FAQ Buttons
+        'faq_understand_dpdr': "Entender DPDR",
+        'faq_general_anxiety': "Ansiedad general",
+        'faq_symptoms': "Síntomas",
+        'faq_exercises': "Ejercicios",
+        'faq_explain_other': "Explicar a Otros",
+        'faq_resources': "Recursos",
+        'feedback_useful': "👍 útil",
+        'feedback_not_useful': "👎 no útil",
+        'feedback_thanks_positive': "¡Gracias por tu feedback positivo!",
+        'feedback_thanks_negative': "Gracias por tu feedback. Lo tendremos en cuenta para mejorar.",
+        'feedback_thanks_generic': "👍",
+        # Otros textos podrían ir aquí...
+    },
+    'en': {
+        # FAQ Buttons
+        'faq_understand_dpdr': "Understand DPDR",
+        'faq_general_anxiety': "General Anxiety",
+        'faq_symptoms': "Symptoms",
+        'faq_exercises': "Exercises",
+        'faq_explain_other': "Explain to Others",
+        'faq_resources': "Resources",
+        'feedback_useful': "👍 útil",
+        'feedback_not_useful': "👎 no útil",
+        'feedback_thanks_positive': "¡Thanks for your positive feedback!",
+        'feedback_thanks_negative': "Thanks for your feedback. We'll take it into account to improve.",
+        'feedback_thanks_generic': "👍",
+        # Other texts could go here...
+    }
+    # Añadir más idiomas si es necesario
+}
+
+def get_text(key: str, lang_code: str | None = 'en') -> str:
+    """Obtiene el texto traducido basado en el código de idioma."""
+    # Usar inglés por defecto si lang_code es None o no está en LOCALES
+    lang = lang_code if lang_code in LOCALES else 'en'
+    # Usar la propia clave como fallback si no se encuentra para ese idioma
+    return LOCALES.get(lang, {}).get(key, key)
+# --- Fin i18n --- 
+
 # Configurar la clave API de Stripe globalmente
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
@@ -405,22 +448,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Fin Lógica de Límites ---
 
     # --- Procesamiento ---
+    lang_code = update.effective_user.language_code # Obtener idioma
     is_feedback_message = False
-    if user_text.lower() in ["👍 útil", "👎 no útil"]:
+    # Comprobar feedback en ambos idiomas
+    if user_text.lower() in [get_text('feedback_useful', 'es').lower(), get_text('feedback_useful', 'en').lower(),
+                           get_text('feedback_not_useful', 'es').lower(), get_text('feedback_not_useful', 'en').lower()]:
         is_feedback_message = True
         if context.user_data.get('last_assistant_message'):
             last_message = context.user_data['last_assistant_message']
-            rating = 'positive' if user_text.lower() == "👍 útil" else 'negative'
+            # Determinar rating basado en el texto original
+            rating = 'positive' if user_text.lower() in [get_text('feedback_useful', 'es').lower(), get_text('feedback_useful', 'en').lower()] else 'negative'
             add_feedback(user_id, last_message, rating)
-            feedback_reply = "¡Gracias por tu feedback positivo!" if rating == 'positive' else "Gracias por tu feedback. Lo tendremos en cuenta para mejorar."
+            # Traducir respuesta de feedback
+            feedback_reply = get_text('feedback_thanks_positive', lang_code) if rating == 'positive' else get_text('feedback_thanks_negative', lang_code)
             await update.message.reply_text(feedback_reply)
             del context.user_data['last_assistant_message']
         else:
-             await update.message.reply_text("Gracias por tu feedback.")
+             await update.message.reply_text(get_text('feedback_thanks_generic', lang_code))
         return
 
-    if user_text.lower() in ["de nada", "gracias", "ok", "vale", "👍", "👎"]:
-        await update.message.reply_text("👍")
+    # Ignorar mensajes simples (añadir traducciones si es necesario)
+    if user_text.lower() in ["de nada", "gracias", "ok", "vale", "👍", "👎", "you're welcome", "thanks", "ok", "okay"]:
+        await update.message.reply_text("👍") # Respuesta simple universal
         return
 
     # --- Preparar llamada a OpenAI ---
@@ -429,26 +478,44 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     instruction_to_use = None
     message_content = user_text
 
-    # --- Manejo específico para opciones simples de FAQ ---
-    if user_text == "Entender DPDR":
-        instruction_to_use = (
+    # --- Manejo específico para opciones simples de FAQ (comprobar ambos idiomas) ---
+    # Mapear claves de traducción a instrucciones (mantener instrucciones originales por ahora)
+    faq_instructions = {
+        'faq_understand_dpdr': (
             "Proporciona una explicación clara y tranquilizadora sobre qué es el DPDR, "
             "dirigida a alguien que lo está experimentando. Explica que es una respuesta de protección del cerebro "
             "ante el estrés o la ansiedad intensa (mecanismo primitivo de 'congelación' o disociación), "
             "enfatizando que no es peligroso, ni significa volverse loco, y es temporal. "
             "Usa un tono empático y normalizador."
-        )
-        message_content = "¿Qué es el DPDR explicado de forma tranquilizadora para quien lo sufre?"
-
-    elif user_text == "Ansiedad general":
-        instruction_to_use = (
+        ),
+        'faq_general_anxiety': (
             "Proporciona una introducción clara y tranquilizadora sobre qué es la ansiedad generalizada (TAG). "
             "Explica que es más que una preocupación normal, describiendo sus síntomas comunes (preocupación excesiva, "
             "inquietud, fatiga, tensión muscular, problemas de sueño). Menciona que, aunque puede ser debilitante, "
             "es tratable. Explica brevemente que puede surgir de una combinación de factores (genética, química cerebral, "
             "experiencias vitales). Usa un tono empático e informativo."
-        )
-        message_content = "¿Qué es la ansiedad general explicada de forma tranquilizadora?"
+        ),
+        # Añadir otras claves si queremos dar respuestas predefinidas para ellas
+    }
+
+    matched_faq_key = None
+    for key in faq_instructions.keys():
+        # Comprobar si el texto del usuario coincide con la traducción en español o inglés
+        if user_text == get_text(key, 'es') or user_text == get_text(key, 'en'):
+            matched_faq_key = key
+            break
+            
+    if matched_faq_key:
+        instruction_to_use = faq_instructions[matched_faq_key]
+        # Usar un prompt interno estandarizado para la IA, independientemente del idioma del botón
+        # Esto evita enviar el texto del botón directamente como prompt
+        if matched_faq_key == 'faq_understand_dpdr':
+             message_content = "Explain DPDR reassuringly for someone experiencing it."
+        elif matched_faq_key == 'faq_general_anxiety':
+             message_content = "Explain Generalized Anxiety Disorder reassuringly."
+        else:
+             message_content = f"Explain the topic related to {matched_faq_key}"
+        logging.info(f"Handling simple FAQ click for key: {matched_faq_key}")
 
     # --- Construir Instrucción Final ---
     if instruction_to_use:
@@ -590,20 +657,46 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra categorías de preguntas frecuentes actualizadas."""
+    lang_code = update.effective_user.language_code
+    
+    # Crear teclado traducido
     keyboard = [
-        ["Entender DPDR", "Ansiedad general"],
-        ["Síntomas", "Ejercicios"],
-        ["Explicar a Otros", "Recursos"] # Renombrado y añadida Ansiedad
+        [get_text('faq_understand_dpdr', lang_code), get_text('faq_general_anxiety', lang_code)],
+        [get_text('faq_symptoms', lang_code), get_text('faq_exercises', lang_code)],
+        [get_text('faq_explain_other', lang_code), get_text('faq_resources', lang_code)]
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True) # Hacer resize
-    await update.message.reply_text(
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    
+    # Crear mensaje traducido
+    message_text = f"{get_text('faq_select_area', lang_code)}\n\n" \
+                   f"{get_text('faq_area_understand', lang_code)}\n" \
+                   f"{get_text('faq_area_anxiety', lang_code)}\n" \
+                   f"{get_text('faq_area_explain', lang_code)}\n" \
+                   f"{get_text('faq_area_symptoms', lang_code)}\n" \
+                   f"{get_text('faq_area_exercises', lang_code)}\n" \
+                   f"{get_text('faq_area_resources', lang_code)}"
+                   
+    # Añadir las claves de traducción para las descripciones si no existen
+    # Necesitaríamos añadir a LOCALES['es'] y LOCALES['en']:
+    # 'faq_select_area': "Selecciona un área..." / "Select an area..."
+    # 'faq_area_understand': "🧠 **Entender DPDR:** ..." / "🧠 **Understand DPDR:** ..."
+    # etc. para todos los faq_area_...
+
+    # Por ahora, mantendremos el texto en español como fallback si las claves no están
+    # (Aunque la función get_text devolvería la clave si no se encuentra)
+    # Esto es temporal hasta añadir todas las traducciones
+    temp_message_text_es = (
         "Selecciona un área de interés:\n\n"
         "🧠 **Entender DPDR:** Una explicación tranquilizadora sobre qué es y por qué ocurre.\n"
         "🌀 **Ansiedad general:** Información sobre la ansiedad, sus mecanismos y cómo se manifiesta.\n"
         "❤️ **Explicar a Otros:** Ayuda para describir tu experiencia (DPDR o ansiedad) a familiares y amigos.\n"
         "🩺 **Síntomas:** Un repaso a los síntomas comunes y qué pueden indicar.\n"
         "🧘 **Ejercicios:** Técnicas y ejercicios prácticos para manejar DPDR y ansiedad.\n"
-        "📚 **Recursos:** Enlaces, libros y otros materiales de apoyo.",
+        "📚 **Recursos:** Enlaces, libros y otros materiales de apoyo."
+    )
+    # Usar el texto español temporalmente
+    await update.message.reply_text(
+        temp_message_text_es, 
         reply_markup=reply_markup
     )
 

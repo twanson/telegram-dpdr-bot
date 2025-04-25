@@ -395,11 +395,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Verificar límites (excepto admins)
     is_admin = user_id in ADMIN_IDS
     if not is_admin and message_count >= plan_limits['daily_messages']:
-        await update.message.reply_text(
+        limit_message = (
             "Has alcanzado tu límite diario de mensajes. 🚫\n"
-            f"Tu plan '{plan_limits['name']}' permite {plan_limits['daily_messages']} mensajes al día.\n"
-            "Usa /plan para ver los planes disponibles."
+            f"Tu plan '{plan_limits['name']}' permite {plan_limits['daily_messages']} mensajes al día.\n\n"
+            "🌟 **¡Mejora tu plan con /upgrade para obtener más mensajes diarios y seguir conversando!**"
         )
+        await update.message.reply_text(limit_message)
         return
     # --- Fin Lógica de Límites ---
 

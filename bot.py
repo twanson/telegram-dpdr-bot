@@ -1241,10 +1241,20 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         
         # --- Construir Mensaje Bilingüe --- 
         # Usamos create_bilingual_block para ambos textos
-        payment_link_text = create_bilingual_block(['upgrade_payment_link_message'], separator="\n")
-        desktop_notice = create_bilingual_block(['upgrade_desktop_copy_notice'], separator="\n")
-        full_message_text = f"{payment_link_text}{desktop_notice}" # Combinar (el notice ya tiene su propio salto de línea)
-        # ----------------------------------
+        payment_link_es = get_text('upgrade_payment_link_message', 'es', default="Haz clic aquí para completar tu suscripción:")
+        notice_es = get_text('upgrade_desktop_copy_notice', 'es', default="\n\n*Nota para usuarios de Escritorio:* Si el botón no abre el enlace directamente, por favor, copia la URL del botón (clic derecho > Copiar enlace) y pégala en tu navegador.")
+        message_es = f"{payment_link_es}{notice_es}"
+        
+        payment_link_en = get_text('upgrade_payment_link_message', 'en', default="Click here to complete your subscription:")
+        notice_en = get_text('upgrade_desktop_copy_notice', 'en', default="\n\n*Note for Desktop users:* If the button doesn't open the link directly, please copy the button's URL (right-click > Copy link) and paste it into your browser.")
+        message_en = f"{payment_link_en}{notice_en}"
+        
+        # Combinar ES y EN con separador
+        if message_es != message_en: # Solo añadir separador si son diferentes
+            full_message_text = f"{message_es}\n\n---\n\n{message_en}"
+        else:
+            full_message_text = message_es # O message_en, son iguales
+        # ------------------------------------------
 
         # --- Configurar timeout para Stripe --- 
         stripe.timeout = 30 # 30 segundos de timeout

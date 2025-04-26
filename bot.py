@@ -1729,6 +1729,99 @@ async def admin_set_customer_id_command(update: Update, context: ContextTypes.DE
 
 # --- Fin Comando Temporal ---
 
+# --- Nuevos Comandos Gestión Admin (DEFINICIONES AÑADIDAS) ---
+async def list_admins_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Lista los usuarios marcados como administradores en la BD."""
+    admin_id = update.effective_user.id
+    if not await is_user_admin(admin_id):
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+        
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Seleccionar usuarios donde is_admin es 1
+        cursor.execute("SELECT user_id, username, first_name FROM users WHERE is_admin = 1 ORDER BY user_id")
+        admins = cursor.fetchall()
+        
+        if not admins:
+            await update.message.reply_text("ℹ️ No hay administradores configurados en la base de datos.")
+            return
+
+        message = f"👑 **Administradores Actuales ({len(admins)}):**\\n---\\n" 
+        for admin in admins:
+             user_info = f"👤 `{admin['user_id']}`" 
+             if admin['username']:
+                 user_info += f" (@{admin['username']})"
+             elif admin['first_name']:
+                  user_info += f" ({admin['first_name']})"
+             message += user_info + "\n"
+        
+        await update.message.reply_text(message, parse_mode='Markdown')
+
+    except sqlite3.Error as e:
+        logging.error(f"Error listando admins: {e}")
+        await update.message.reply_text("❌ Error al consultar la lista de administradores.")
+    finally:
+        if conn:
+            conn.close()
+
+async def add_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Añade un usuario como administrador."""
+    admin_id = update.effective_user.id
+    if not await is_user_admin(admin_id):
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("⚠️ Uso: /add_admin <user_id>")
+        return
+
+    try:
+        target_user_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Error: <user_id> debe ser un número.")
+        return
+
+    success = await set_admin_status(target_user_id, True)
+    
+    if success:
+        await update.message.reply_text(f"✅ Usuario `{target_user_id}` establecido como administrador.", parse_mode='Markdown')
+    else:
+        # set_admin_status ya loguea el error, aquí damos mensaje genérico o más info
+        await update.message.reply_text(f"❌ No se pudo establecer como admin a `{target_user_id}`. Verifica que el usuario existe.", parse_mode='Markdown')
+
+async def remove_admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Remueve a un usuario de ser administrador."""
+    admin_id = update.effective_user.id
+    if not await is_user_admin(admin_id):
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    if len(context.args) != 1:
+        await update.message.reply_text("⚠️ Uso: /remove_admin <user_id>")
+        return
+
+    try:
+        target_user_id = int(context.args[0])
+    except ValueError:
+        await update.message.reply_text("❌ Error: <user_id> debe ser un número.")
+        return
+        
+    # Evitar que el admin inicial se quite a sí mismo accidentalmente?
+    # Podríamos añadir: if target_user_id == 23684095: ... return
+    # O confiar en que el admin sabe lo que hace.
+
+    success = await set_admin_status(target_user_id, False)
+    
+    if success:
+        await update.message.reply_text(f"✅ Usuario `{target_user_id}` ya no es administrador.", parse_mode='Markdown')
+    else:
+        await update.message.reply_text(f"❌ No se pudo quitar como admin a `{target_user_id}`.", parse_mode='Markdown')
+
+# --- Fin Nuevos Comandos Gestión Admin ---
+
 # --- Funciones para la Conversación "Explicar a Otros" ---
 async def explain_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Inicia la conversación para explicar algo a otros."""

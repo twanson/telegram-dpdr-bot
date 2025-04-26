@@ -275,15 +275,35 @@ LOCALES = {
     }
 }
 
-def get_text(key: str, lang_code: str | None = 'en', **kwargs) -> str:
-    """Obtiene el texto traducido basado en el código de idioma y formatea con kwargs."""
-    lang = lang_code if lang_code in LOCALES else 'en'
-    text_template = LOCALES.get(lang, {}).get(key, key)
+def get_text(key: str, lang_code: str | None = None, **kwargs) -> str:
+    """Obtiene el texto bilingüe (ES / EN) para una clave dada o un solo idioma si son iguales.
+    Ignora el lang_code proporcionado para los textos de la interfaz.
+    """
+    text_es = LOCALES.get('es', {}).get(key, None)
+    text_en = LOCALES.get('en', {}).get(key, None)
+
+    # Formatear antes de comparar/combinar si hay kwargs
     try:
-        return text_template.format(**kwargs)
+        if text_es and kwargs:
+            text_es = text_es.format(**kwargs)
+        if text_en and kwargs:
+            text_en = text_en.format(**kwargs)
     except KeyError as e:
-        logging.warning(f"[i18n] Missing format key '{e}' for text key '{key}' in lang '{lang}'")
-        return text_template # Devuelve sin formatear si falta una clave
+        logging.warning(f"[get_text] Missing format key '{e}' for text key '{key}'")
+        # Devolver clave original si falla el formato gravemente
+        return key 
+
+    # Combinar si ambos existen y son diferentes
+    if text_es and text_en and text_es != text_en:
+        return f"{text_es} / {text_en}"
+    elif text_es:
+        return text_es
+    elif text_en:
+        return text_en
+    else:
+        # Si la clave no se encuentra en ningún idioma, devolver la clave
+        logging.warning(f"[get_text] Text key '{key}' not found in 'es' or 'en' locales.")
+        return key
 # --- Fin i18n --- 
 
 # Configurar la clave API de Stripe globalmente
@@ -1132,8 +1152,8 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     try:
         # --- Log URLs antes de llamar a Stripe --- 
-        constructed_success_url = YOUR_DOMAIN + '/success?session_id={CHECKOUT_SESSION_ID}'
-        constructed_cancel_url = YOUR_DOMAIN + '/cancel'
+        constructed_success_url = YOUR_DOMAIN + '/stripe-success?session_id={CHECKOUT_SESSION_ID}' # <-- Corregido
+        constructed_cancel_url = YOUR_DOMAIN + '/stripe-cancel' # <-- Corregido
         logging.info(f"upgrade_button_handler: Construyendo URLs para Stripe: success='{constructed_success_url}', cancel='{constructed_cancel_url}'")
         # -------------------------------------------
         logging.info(f"upgrade_button_handler: Intentando crear sesión de Stripe con Price ID: {price_id}")
@@ -1150,8 +1170,8 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
                 },
             ],
             mode='subscription',
-            success_url=constructed_success_url, # Usar variable
-            cancel_url=constructed_cancel_url,   # Usar variable
+            success_url=constructed_success_url, # Usar variable corregida
+            cancel_url=constructed_cancel_url,   # Usar variable corregida
             customer_email=None, 
             metadata={
                 'telegram_user_id': str(user_id) 

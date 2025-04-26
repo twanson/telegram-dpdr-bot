@@ -5,7 +5,7 @@ import time
 import sys
 import sqlite3 # <-- Añadir importación
 import re # <--- Añadir import
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.constants import ParseMode # <-- Importación corregida
 from telegram.ext import (
     ApplicationBuilder, 
@@ -67,6 +67,9 @@ CRITICAL_KEYWORDS = [
     "end it all", "don\'t want to live", "disappear", # Asegurar que el apóstrofo está escapado para Git/Shell si es necesario, pero no en la lista Python.
     "can\'t take it anymore" # Igual aquí.
 ]
+
+# Variable global para activar/desactivar la comprobación de palabras clave
+CHECK_CRITICAL_KEYWORDS = False # Poner a True para activar la comprobación
 
 # --- Textos para Internacionalización (i18n) --- 
 LOCALES = {
@@ -149,6 +152,12 @@ LOCALES = {
         'error_generic': "Lo siento, hubo un error al procesar tu mensaje: {error}",
         'error_no_user_data': "No encuentro tus datos. Por favor, usa /start primero.",
         'reset_confirmation': "He reiniciado tu conversación. La próxima vez que me escribas, empezaré un nuevo hilo.",
+        # Support Conversation
+        'support_prompt': "Por favor, describe brevemente tu consulta o problema para el equipo de soporte:",
+        'support_cancel_instruction': "(Escribe /cancel si cambias de opinión)",
+        'support_confirmation': "Gracias. Tu consulta ha sido enviada al equipo de soporte. Te contactarán si es necesario.",
+        'support_cancel_confirmation': "De acuerdo, se canceló la solicitud de soporte.",
+        'faq_removing_keyboard': "Cargando opciones...",
     },
     'en': {
         # FAQ Buttons
@@ -215,6 +224,12 @@ LOCALES = {
         'error_generic': "Sorry, there was an error processing your message: {error}",
         'error_no_user_data': "I can't find your data. Please use /start first.",
         'reset_confirmation': "I have restarted your conversation. The next time you write to me, I will start a new thread.",
+        # Support Conversation
+        'support_prompt': "Please briefly describe your query or problem for the support team:",
+        'support_cancel_instruction': "(Type /cancel if you change your mind)",
+        'support_confirmation': "Thank you. Your query has been sent to the support team. They will contact you if necessary.",
+        'support_cancel_confirmation': "Okay, the support request has been cancelled.",
+        'faq_removing_keyboard': "Loading options...",
     }
 }
 
@@ -592,6 +607,7 @@ def update_user_thread_id(user_id: int, thread_id: str | None):
 
 # --- Constantes para Estados de Conversación ---
 ASK_EXPLAIN_TARGET = range(1)
+ASK_SUPPORT_DETAILS = range(1) # Estado para la conversación de soporte
 
 # Añadir verificación de variables de entorno
 def verify_env_variables():
@@ -612,6 +628,134 @@ def verify_env_variables():
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja errores del bot."""
     logging.error(f"Exception while handling an update: {context.error}")
+
+async def process_user_input(user_id: int, lang: str, message_text: str, context: ContextTypes.DEFAULT_TYPE, update: Update):
+    """Lógica principal para procesar una entrada de texto del usuario (mensaje o botón FAQ)."""
+    
+    # 0. Usar get_user que maneja creación/actualización de contadores
+    user_data = get_user(user_id)
+    if not user_data:
+        await update.message.reply_text(get_text('error_no_user_data', lang))
+        return
+
+    current_plan = user_data['plan']
+    daily_messages = user_data['daily_messages']
+    thread_id_from_db = user_data['openai_thread_id'] 
+    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
+
+    # 1. Verificar límite de mensajes
+    if daily_messages >= plan_limit:
+        plan_name = current_plan.capitalize()
+        limit_msg_1 = get_text('limit_reached_1', lang)
+        limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
+        limit_cta = get_text('limit_reached_cta', lang)
+        full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
+        # Necesitamos enviar la respuesta de forma diferente si viene de un callback
+        if update.callback_query:
+             await update.callback_query.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+        else:
+             await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # 2. Incrementar contador de mensajes (usando la función helper)
+    update_user_usage(user_id, message_increment=1)
+
+    # --- Lógica OpenAI --- 
+    client = context.user_data.get('openai_client')
+    current_thread_id = context.user_data.get('openai_thread_id')
+
+    if not client or not current_thread_id:
+        logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
+        client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
+        current_thread_id = thread_id_from_db
+        if not current_thread_id:
+            logging.info(f"Creando nuevo thread para {user_id} dentro de process_user_input.")
+            thread = client.beta.threads.create()
+            current_thread_id = thread.id
+            update_user_thread_id(user_id, current_thread_id)
+        
+        context.user_data['openai_client'] = client
+        context.user_data['openai_thread_id'] = current_thread_id
+
+    try:
+        use_gpt4 = False
+        # TODO: Re-evaluar si necesitamos CHECK_CRITICAL_KEYWORDS globalmente
+        # if CHECK_CRITICAL_KEYWORDS: 
+        #     for keyword in CRITICAL_KEYWORDS:
+        #         if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
+        #             use_gpt4 = True
+        #             logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
+        #             break
+
+        # TODO: Implementar selección de modelo (gpt-4o vs gpt-4o-mini)
+        # model_to_use = "gpt-4o" if use_gpt4 else "gpt-4o-mini"
+
+        logging.info(f"Enviando mensaje del usuario {user_id} al thread {current_thread_id}: '{message_text[:50]}...'")
+        client.beta.threads.messages.create(
+            thread_id=current_thread_id,
+            role="user",
+            content=message_text, 
+        )
+
+        # Ejecutar Asistente
+        run = client.beta.threads.runs.create(
+            thread_id=current_thread_id,
+            assistant_id=ASSISTANT_ID,
+            # model=model_to_use 
+        )
+
+        # Mensaje de espera (opcional, añadir si se desea)
+        # await update.message.reply_chat_action(action='typing')
+
+        # Esperar finalización
+        run_id = run.id # Guardar run_id para feedback
+        while run.status not in ["completed", "failed", "cancelled", "expired"]:
+            await asyncio.sleep(1)
+            run = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
+            logging.debug(f"Run status para user {user_id}: {run.status}")
+
+        if run.status == "completed":
+            messages = client.beta.threads.messages.list(thread_id=current_thread_id, order="desc", limit=1)
+            assistant_message = messages.data[0].content[0].text.value
+            logging.info(f"Respuesta recibida del asistente para el usuario {user_id}")
+
+            # Guardar info para feedback
+            context.user_data[user_id] = context.user_data.get(user_id, {})
+            context.user_data[user_id]['last_assistant_message_info'] = {
+                 'user_query': message_text,
+                 'assistant_response': assistant_message,
+                 'thread_id': current_thread_id,
+                 'run_id': run_id
+             }
+
+            # Enviar respuesta con botones de feedback
+            keyboard = [
+                [InlineKeyboardButton(get_text('feedback_useful', lang), callback_data='feedback_useful')],
+                [InlineKeyboardButton(get_text('feedback_not_useful', lang), callback_data='feedback_not_useful')]
+            ]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            # Necesitamos enviar la respuesta de forma diferente si viene de un callback
+            if update.callback_query:
+                 await update.callback_query.message.reply_text(assistant_message, reply_markup=reply_markup)
+            else:
+                 await update.message.reply_text(assistant_message, reply_markup=reply_markup)
+
+        else:
+            logging.error(f"La ejecución del asistente falló para el usuario {user_id} con estado: {run.status}")
+            error_text = get_text('error_openai_run', lang, default="Lo siento, no pude procesar tu solicitud en este momento.")
+            if update.callback_query:
+                 await update.callback_query.message.reply_text(error_text)
+            else:
+                 await update.message.reply_text(error_text)
+
+    except Exception as e:
+        logging.error(f"Error inesperado al procesar input del usuario {user_id}: {e}", exc_info=True)
+        error_message = get_text('error_generic', lang).format(error=str(e))
+        if update.callback_query:
+             await update.callback_query.message.reply_text(error_message)
+        else:
+             await update.message.reply_text(error_message)
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -694,115 +838,11 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    user_id = user.id
     lang = user.language_code or 'en'
     message_text = update.message.text
 
-    # 0. Usar get_user que maneja creación/actualización de contadores
-    user_data = get_user(user_id)
-
-    if not user_data:
-        # get_user ya habrá loggeado el error, pero podemos añadir un mensaje al usuario
-        await update.message.reply_text(get_text('error_no_user_data', lang))
-        return
-
-    current_plan = user_data['plan']
-    daily_messages = user_data['daily_messages']
-    thread_id_from_db = user_data['openai_thread_id'] # Nombre correcto
-    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
-
-    # 1. Verificar límite de mensajes
-    if daily_messages >= plan_limit:
-        plan_name = current_plan.capitalize()
-        limit_msg_1 = get_text('limit_reached_1', lang)
-        limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
-        limit_cta = get_text('limit_reached_cta', lang)
-        full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
-        await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
-        return
-
-    # 2. Incrementar contador de mensajes (usando la función helper)
-    update_user_usage(user_id, message_increment=1)
-
-    client = context.user_data.get('openai_client')
-    current_thread_id = context.user_data.get('openai_thread_id')
-
-    if not client or not current_thread_id:
-        logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
-        client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-        current_thread_id = thread_id_from_db # Usar el de la BD
-
-        if not current_thread_id:
-            logging.info(f"Creando nuevo thread para {user_id} dentro de handle_message.")
-            thread = client.beta.threads.create()
-            current_thread_id = thread.id
-            update_user_thread_id(user_id, current_thread_id) # Usar helper
-
-        context.user_data['openai_client'] = client
-        context.user_data['openai_thread_id'] = current_thread_id
-
-    try:
-        # 3. Comprobar palabras clave críticas (solo si la comprobación está activa)
-        use_gpt4 = False
-        if CHECK_CRITICAL_KEYWORDS:
-            for keyword in CRITICAL_KEYWORDS:
-                # Usar word boundaries (\b) para evitar matches parciales
-                if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
-                    use_gpt4 = True
-                    logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
-                    break
-
-        # Seleccionar modelo basado en la comprobación
-        # TODO: Aún no tenemos el modelo GPT-4o listo, usar el normal por ahora.
-        # current_model = "gpt-4o" if use_gpt4 else "gpt-3.5-turbo"
-        # logging.info(f"Usando modelo: {current_model}") 
-
-        # 4. Enviar mensaje a OpenAI
-        logging.info(f"Enviando mensaje del usuario {user_id} al thread {current_thread_id}")
-        client.beta.threads.messages.create(
-            thread_id=current_thread_id,
-            role="user",
-            content=message_text,
-        )
-
-        # 5. Ejecutar el Asistente
-        run = client.beta.threads.runs.create(
-            thread_id=current_thread_id,
-            assistant_id=ASSISTANT_ID,
-            # Se podrían añadir instrucciones específicas aquí si fuese necesario
-            # instructions="Por favor, responde de forma concisa."
-        )
-
-        # 6. Esperar a que la ejecución termine
-        while run.status not in ["completed", "failed", "cancelled", "expired"]:
-            await asyncio.sleep(1) # Espera asíncrona
-            run = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
-            logging.debug(f"Run status para user {user_id}: {run.status}")
-
-        # 7. Procesar respuesta si la ejecución fue exitosa
-        if run.status == "completed":
-            messages = client.beta.threads.messages.list(thread_id=current_thread_id, order="desc", limit=1)
-            assistant_message = messages.data[0].content[0].text.value
-            logging.info(f"Respuesta recibida del asistente para el usuario {user_id}")
-
-            # 8. Enviar respuesta al usuario con botones de feedback
-            keyboard = [
-                [InlineKeyboardButton(get_text('feedback_useful', lang), callback_data='feedback_useful')],
-                [InlineKeyboardButton(get_text('feedback_not_useful', lang), callback_data='feedback_not_useful')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            await update.message.reply_text(assistant_message, reply_markup=reply_markup)
-
-        else:
-            logging.error(f"La ejecución del asistente falló para el usuario {user_id} con estado: {run.status}")
-            error_text = get_text('error_openai_run', lang, default="Lo siento, no pude procesar tu solicitud en este momento.") # Añadir locale si es necesario
-            await update.message.reply_text(error_text)
-
-    except Exception as e:
-        logging.error(f"Error inesperado al manejar el mensaje del usuario {user_id}: {e}", exc_info=True)
-        # Usar get_text para el error genérico
-        error_message = get_text('error_generic', lang).format(error=str(e))
-        await update.message.reply_text(error_message)
+    # Pasar el procesamiento a la función helper
+    await process_user_input(user.id, lang, message_text, context, update)
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -841,19 +881,23 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    lang = user.language_code
+    lang = user.language_code or 'en' # Asegurarse de tener un idioma por defecto
+
+    # Eliminar cualquier teclado de respuesta anterior
+    await update.message.reply_text(get_text('faq_removing_keyboard', lang, default="Cargando opciones..."), 
+                                  reply_markup=ReplyKeyboardRemove())
 
     keyboard = [
-        [InlineKeyboardButton(get_text('faq_understand_dpdr', lang), callback_data='faq_understand')],
-        [InlineKeyboardButton(get_text('faq_general_anxiety', lang), callback_data='faq_anxiety')],
-        [InlineKeyboardButton(get_text('faq_explain_other', lang), callback_data='faq_explain')],
+        [InlineKeyboardButton(get_text('faq_understand_dpdr', lang), callback_data='faq_understand_dpdr')], # Usar clave como callback_data
+        [InlineKeyboardButton(get_text('faq_general_anxiety', lang), callback_data='faq_general_anxiety')],
+        [InlineKeyboardButton(get_text('faq_explain_other', lang), callback_data='faq_explain_other')],
         [InlineKeyboardButton(get_text('faq_symptoms', lang), callback_data='faq_symptoms')],
         [InlineKeyboardButton(get_text('faq_exercises', lang), callback_data='faq_exercises')],
         [InlineKeyboardButton(get_text('faq_resources', lang), callback_data='faq_resources')]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Construcción más segura del texto
+    # ... (resto del código para construir faq_text)
     text_lines = [
         get_text('faq_area_understand', lang),
         get_text('faq_area_anxiety', lang),
@@ -865,7 +909,7 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     faq_text = "\n".join(text_lines)
 
-    # Usar ParseMode.MARKDOWN (asegurarse que está importado)
+    # Enviar el mensaje principal con el teclado inline
     await update.message.reply_text(faq_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1029,12 +1073,16 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     available_plans_title = get_text('plan_available_title', lang)
     
     # Obtener precios formateados de SUBSCRIPTION_PLANS
+    free_limit = SUBSCRIPTION_PLANS.get('FREE', {}).get('daily_messages', 0)
+    basic_limit = SUBSCRIPTION_PLANS.get('BASIC', {}).get('daily_messages', 0)
+    premium_limit = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('daily_messages', 0)
     basic_price = SUBSCRIPTION_PLANS.get('BASIC', {}).get('price', 'N/A')
     premium_price = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('price', 'N/A')
 
-    plan_free_desc = get_text('plan_free_desc', lang).format(limit=SUBSCRIPTION_PLANS.get('FREE', {}).get('daily_messages', 0))
-    plan_basic_desc = get_text('plan_basic_desc', lang).format(limit=SUBSCRIPTION_PLANS.get('BASIC', {}).get('daily_messages', 0), price=basic_price)
-    plan_premium_desc = get_text('plan_premium_desc', lang).format(limit=SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('daily_messages', 0), price=premium_price)
+    # Pasar los argumentos correctos a .format()
+    plan_free_desc = get_text('plan_free_desc', lang).format(limit=free_limit)
+    plan_basic_desc = get_text('plan_basic_desc', lang).format(limit=basic_limit, price=basic_price)
+    plan_premium_desc = get_text('plan_premium_desc', lang).format(limit=premium_limit, price=premium_price)
 
     if current_plan.upper() == 'FREE': # Comparar con MAYUS
         upgrade_cta = get_text('plan_upgrade_cta_free', lang)
@@ -1433,6 +1481,75 @@ async def feedback_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_reply_markup(reply_markup=None) # Eliminar botones
         await query.message.reply_text(get_text('feedback_thanks_generic', lang))
 
+# --- Funciones para la Conversación de Soporte ---
+
+async def support_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Inicia la conversación de solicitud de soporte."""
+    user = update.effective_user
+    lang = user.language_code or 'en'
+    prompt_text = get_text('support_prompt', lang, default="Por favor, describe brevemente tu consulta o problema para el equipo de soporte:")
+    cancel_instruction = get_text('support_cancel_instruction', lang, default="(Escribe /cancel si cambias de opinión)")
+    await update.message.reply_text(f"{prompt_text}\n\n{cancel_instruction}")
+    return ASK_SUPPORT_DETAILS
+
+async def support_details_received(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Recibe la consulta de soporte, la notifica a los admins y confirma al usuario."""
+    user = update.effective_user
+    lang = user.language_code or 'en'
+    support_query = update.message.text
+
+    logging.info(f"Recibida consulta de soporte del usuario {user.id} ({user.username}): {support_query}")
+
+    # Formatear notificación para admins
+    notification_message = (
+        f"📣 **Nueva Consulta de Soporte** 📣\n\n"
+        f"**De:** Usuario ID `{user.id}` (Username: @{user.username or 'N/A'})\n"
+        f"**Consulta:**\n{support_query}"
+    )
+
+    # Enviar notificación a todos los admins
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_message(chat_id=admin_id, text=notification_message, parse_mode=ParseMode.MARKDOWN)
+            logging.info(f"Notificación de soporte enviada al admin {admin_id}")
+        except Exception as e:
+            logging.error(f"Error enviando notificación de soporte al admin {admin_id}: {e}")
+
+    # Confirmar al usuario
+    confirmation_text = get_text('support_confirmation', lang, default="Gracias. Tu consulta ha sido enviada al equipo de soporte. Te contactarán si es necesario.")
+    await update.message.reply_text(confirmation_text)
+
+    return ConversationHandler.END
+
+async def support_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Cancela la conversación de soporte."""
+    user = update.effective_user
+    lang = user.language_code or 'en'
+    cancel_message = get_text('support_cancel_confirmation', lang, default="De acuerdo, se canceló la solicitud de soporte.")
+    await update.message.reply_text(cancel_message)
+    return ConversationHandler.END
+
+# --- Handler para botones FAQ ---
+async def faq_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja los clics en los botones inline del comando /faq."""
+    query = update.callback_query
+    user = query.from_user
+    lang = user.language_code or 'en'
+    
+    # Responder al callback para quitar el estado "loading"
+    await query.answer()
+
+    # El callback_data es la clave de LOCALES para el botón pulsado
+    faq_key = query.data
+    # Obtener el texto que el usuario ve en el botón (será el input para la IA)
+    button_text = get_text(faq_key, lang)
+
+    logging.info(f"Botón FAQ pulsado por {user.id}: {faq_key} ('{button_text}')")
+
+    # Procesar este texto como si el usuario lo hubiera escrito
+    # Pasamos 'update' para que process_user_input sepa que viene de un callback
+    await process_user_input(user.id, lang, button_text, context, update)
+
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
@@ -1467,6 +1584,17 @@ def main():
         )
         # --- Fin ConversationHandler ---
 
+        # --- Crear ConversationHandler para Soporte ---
+        support_conv_handler = ConversationHandler(
+            entry_points=[CommandHandler("support", support_command)],
+            states={
+                ASK_SUPPORT_DETAILS: [MessageHandler(filters.TEXT & ~filters.COMMAND, support_details_received)],
+            },
+            fallbacks=[CommandHandler('cancel', support_cancel)],
+            # Podríamos añadir un timeout aquí también
+        )
+        # --- Fin ConversationHandler ---
+
         # Registramos los handlers
         application.add_handler(CommandHandler("start", start_command))
         application.add_handler(CommandHandler("help", help_command))
@@ -1475,16 +1603,21 @@ def main():
         application.add_handler(CommandHandler("plan", plan_command))
         application.add_handler(CommandHandler("upgrade", upgrade_command))
         
-        # Añadir PRIMERO el ConversationHandler
+        # Añadir PRIMERO los ConversationHandlers
         application.add_handler(explain_conv_handler)
+        application.add_handler(support_conv_handler) # <-- Añadir handler de soporte
 
-        # --- Añadir Handler para botones de Upgrade --- <--- MOVIDO AQUÍ
+        # --- Añadir Handler para botones de Upgrade --- 
         application.add_handler(CallbackQueryHandler(upgrade_button_handler, pattern='^upgrade_'))
         # --------------------------------------------
 
         # --- Añadir Handler para botones de Feedback ---
         application.add_handler(CallbackQueryHandler(feedback_callback, pattern='^feedback_'))
         # -------------------------------------------
+        
+        # --- Añadir Handler para botones de FAQ ---
+        application.add_handler(CallbackQueryHandler(faq_button_handler, pattern='^faq_')) # <-- Nuevo handler FAQ
+        # ---------------------------------------
 
         # Handler general de mensajes (al final)
         # (Debe ignorar el texto de los botones que inician conversaciones)

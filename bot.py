@@ -736,6 +736,7 @@ def update_user_stripe_customer_id(user_id: int, customer_id: str | None):
         c = conn.cursor()
         c.execute("UPDATE users SET stripe_customer_id = ? WHERE user_id = ?", (customer_id, user_id))
         conn.commit()
+        logging.info(f"update_user_stripe_customer_id: Commit exitoso para user {user_id}") # <-- Log de commit
         logging.info(f"Stripe Customer ID actualizado para {user_id}: {'Borrado' if customer_id is None else customer_id}")
         return True
     except sqlite3.Error as e:
@@ -1706,7 +1707,9 @@ async def admin_set_customer_id_command(update: Update, context: ContextTypes.DE
         return
 
     # 3. Actualizar base de datos usando la función existente
+    logging.info(f"admin_set_customer_id: Intentando actualizar BD para user {target_user_id} con CustomerID {target_customer_id}") # <-- Log ANTES
     success = update_user_stripe_customer_id(target_user_id, target_customer_id)
+    logging.info(f"admin_set_customer_id: Resultado de update_user_stripe_customer_id: {success}") # <-- Log DESPUÉS
 
     # 4. Confirmar al admin
     if success:

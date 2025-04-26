@@ -277,36 +277,71 @@ LOCALES = {
     }
 }
 
-def get_text(key: str, lang_code: str | None = None, **kwargs) -> str:
-    """Obtiene el texto bilingüe (ES / EN) para una clave dada o un solo idioma si son iguales.
-    Ignora el lang_code proporcionado para los textos de la interfaz.
+def get_text(key: str, lang_code: str | None = 'en', **kwargs) -> str:
+    """Obtiene el texto traducido basado en el código de idioma y formatea con kwargs.
+    Usa 'en' como fallback si el idioma o la clave no existen.
     """
-    text_es = LOCALES.get('es', {}).get(key, None)
-    text_en = LOCALES.get('en', {}).get(key, None)
-
-    # Formatear antes de comparar/combinar si hay kwargs
+    # Determinar el idioma a usar, con fallback a 'en'
+    lang = lang_code if lang_code in LOCALES else 'en'
+    
+    # Obtener la plantilla de texto para el idioma determinado
+    # Si la clave no existe en ese idioma, intentar obtenerla de 'en'
+    text_template = LOCALES.get(lang, {}).get(key)
+    if text_template is None and lang != 'en':
+        text_template = LOCALES.get('en', {}).get(key)
+    
+    # Si la clave no existe ni en el idioma solicitado ni en 'en', devolver la clave misma
+    if text_template is None:
+        logging.warning(f"[get_text] Text key '{key}' not found in '{lang}' or 'en' locales.")
+        # Devolver la clave formateada si es posible, o la clave cruda
+        try:
+            return key.format(**kwargs) 
+        except KeyError:
+             return key
+    
+    # Formatear la plantilla con los argumentos proporcionados
     try:
-        if text_es and kwargs:
-            text_es = text_es.format(**kwargs)
-        if text_en and kwargs:
-            text_en = text_en.format(**kwargs)
+        return text_template.format(**kwargs)
     except KeyError as e:
-        logging.warning(f"[get_text] Missing format key '{e}' for text key '{key}'")
-        # Devolver clave original si falla el formato gravemente
-        return key 
+        logging.warning(f"[get_text] Missing format key '{e}' for text key '{key}' in lang '{lang}'")
+        return text_template # Devuelve sin formatear si falta una clave de formato
 
-    # Combinar si ambos existen y son diferentes
-    if text_es and text_en and text_es != text_en:
-        return f"{text_es} / {text_en}"
-    elif text_es:
-        return text_es
-    elif text_en:
-        return text_en
-    else:
-        # Si la clave no se encuentra en ningún idioma, devolver la clave
-        logging.warning(f"[get_text] Text key '{key}' not found in 'es' or 'en' locales.")
-        return key
 # --- Fin i18n --- 
+
+# --- Nueva Función Auxiliar Bilingüe ---
+def create_bilingual_block(keys: list[str], join_char: str = "\n", separator: str = "\n\n---\n\n", **kwargs) -> str:
+    """Crea un bloque de texto bilingüe (Inglés primero, luego Español).
+
+    Args:
+        keys: Lista de claves de texto (de LOCALES) a incluir.
+        join_char: Caracter(es) para unir las líneas dentro de cada bloque de idioma.
+        separator: Caracter(es) para separar el bloque inglés del español.
+        **kwargs: Argumentos de formato a pasar a get_text.
+
+    Returns:
+        String con el bloque inglés, separador, y bloque español.
+    """
+    block_en_parts = []
+    block_es_parts = []
+
+    for key in keys:
+        # Obtener texto para inglés, usando kwargs si existen
+        text_en = get_text(key, 'en', **kwargs)
+        block_en_parts.append(text_en)
+        
+        # Obtener texto para español, usando kwargs si existen
+        text_es = get_text(key, 'es', **kwargs)
+        block_es_parts.append(text_es)
+
+    block_en = join_char.join(block_en_parts)
+    block_es = join_char.join(block_es_parts)
+
+    # Evitar separador si los bloques son idénticos (ej., si español no existe y fallback a inglés)
+    if block_en == block_es:
+        return block_en
+    else:
+        return f"{block_en}{separator}{block_es}"
+# --- Fin Función Auxiliar ---
 
 # Configurar la clave API de Stripe globalmente
 if STRIPE_SECRET_KEY:
@@ -911,28 +946,25 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # No necesitamos cerrar la conexión aquí si la obtuvimos de get_db_connection y update_user_thread_id la maneja
     # conn.close() <-- Eliminar si get_db_connection y otras funciones manejan su conexión
 
-    # Enviar mensaje de bienvenida usando get_text
-    welcome_text_1 = get_text('start_welcome_1', lang)
-    welcome_text_2 = get_text('start_welcome_2', lang)
-    commands_title = get_text('start_commands_title', lang)
-    faq_cmd = get_text('start_faq', lang)
-    plan_cmd = get_text('start_plan', lang)
-    upgrade_cmd = get_text('start_upgrade', lang)
-    reset_cmd = get_text('start_reset', lang)
-    help_cmd = get_text('start_help', lang)
-    cta_text = get_text('start_cta', lang)
+    # Enviar mensaje de bienvenida usando la nueva función auxiliar
+    start_message_keys = [
+        'start_welcome_1',
+        'start_welcome_2',
+        'start_commands_title',
+        'start_faq',
+        'start_plan',
+        'start_upgrade',
+        'start_reset',
+        'start_help',
+        'start_cta'
+    ]
 
-    full_message = (
-        f"{welcome_text_1}\n"
-        f"{welcome_text_2}\n\n"
-        f"{commands_title}\n"
-        f"{faq_cmd}\n"
-        f"{plan_cmd}\n"
-        f"{upgrade_cmd}\n"
-        f"{reset_cmd}\n"
-        f"{help_cmd}\n\n"
-        f"{cta_text}"
-    )
+    # Definir cómo se unen las líneas de comandos (con salto de línea)
+    # Los títulos y textos iniciales/finales ya tienen saltos implícitos o se unen con \n
+    # Construir el mensaje bilingüe completo
+    # Pasar lang es opcional aquí, ya que create_bilingual_block obtiene ambos idiomas
+    # Pero lo mantenemos por si get_text lo necesitara en el futuro.
+    full_message = create_bilingual_block(start_message_keys, join_char="\n", separator="\n\n---\n\n") 
 
     await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
 
@@ -965,15 +997,25 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = user.language_code or 'en'
 
-    help_text = (
-        f"{get_text('help_title', lang)}\n"
-        f"{get_text('start_faq', lang)}\n"
-        f"{get_text('start_plan', lang)}\n"
-        f"{get_text('start_upgrade', lang)}\n"
-        f"{get_text('start_reset', lang)}\n"
-        f"{get_text('start_help', lang)}\n"
-        f"{get_text('help_support', lang)}"
-    )
+    # Definir las claves de texto para el mensaje de ayuda
+    help_message_keys = [
+        'help_title',
+        'start_faq', # Reutilizamos claves de start si aplican
+        'start_plan',
+        'start_upgrade',
+        'start_reset',
+        'start_help',
+        'help_support' # Clave específica de help
+        # 'help_cta' # Decidimos si incluir la llamada a la acción aquí o no
+    ]
+
+    # Construir el mensaje bilingüe
+    help_text = create_bilingual_block(help_message_keys, join_char="\n", separator="\n\n---\n\n")
+    
+    # Añadir CTA opcional después (quizás no bilingüe o con su propia clave)
+    cta_text = get_text('help_cta', lang) # Obtener CTA en el idioma del usuario 
+    # help_text += "\n\n" + cta_text 
+
     await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
 async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1000,30 +1042,35 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = user.language_code or 'en'
 
-    # --- Volver a ReplyKeyboardMarkup --- 
+    # --- Botones (se mantienen usando get_text normal) ---
     keyboard = [
         [get_text('faq_understand_dpdr', lang), get_text('faq_general_anxiety', lang)],
         [get_text('faq_symptoms', lang), get_text('faq_exercises', lang)],
         [get_text('faq_explain_other', lang), get_text('faq_resources', lang)]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    # ------------------------------------
-    
-    # --- Texto original de descripción --- 
-    text_lines = [
-        get_text('faq_area_understand', lang),
-        get_text('faq_area_anxiety', lang),
-        get_text('faq_area_explain', lang),
-        get_text('faq_area_symptoms', lang),
-        get_text('faq_area_exercises', lang),
-        get_text('faq_area_resources', lang),
-        "\n" + get_text('faq_select_area', lang) 
-    ]
-    faq_text = "\n".join(text_lines)
-    # -----------------------------------
+    # ------------------------------------------------------
 
-    # Enviar mensaje con el teclado de respuesta
-    await update.message.reply_text(faq_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    # --- Texto descriptivo (bilingüe) ---
+    faq_description_keys = [
+        'faq_area_understand',
+        'faq_area_anxiety',
+        'faq_area_explain',
+        'faq_area_symptoms',
+        'faq_area_exercises',
+        'faq_area_resources',
+        # 'faq_select_area' # Añadimos esta clave al final
+    ]
+    # Construir bloque descriptivo bilingüe
+    faq_description_text = create_bilingual_block(faq_description_keys, join_char="\n", separator="\n\n---\n\n")
+    
+    # Añadir la selección final (quizás bilingüe también o solo en idioma usuario)
+    select_area_text = get_text('faq_select_area', lang) # O usar create_bilingual_block([aq_select_area']) si se quiere bilingüe
+    final_text = faq_description_text + "\n\n" + select_area_text
+    # ------------------------------------
+
+    # Enviar mensaje con texto descriptivo bilingüe y botones en idioma del usuario
+    await update.message.reply_text(final_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra opciones para actualizar el plan con botones inline."""
@@ -1038,13 +1085,13 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # ----------------------------------------
 
     if not basic_price_id or not premium_price_id:
-        # Traducir error
-        error_msg = get_text('error_stripe_ids_missing', lang, default="Lo siento, la opción de mejora de plan no está configurada correctamente.")
+        # Error bilingüe
+        error_msg = create_bilingual_block(['error_stripe_ids_missing'])
         await update.message.reply_text(error_msg)
         logging.error("IDs de precios de Stripe (BASIC o PREMIUM) no configurados en variables de entorno.")
         return
-        
-    # --- Obtener precios y límites desde SUBSCRIPTION_PLANS ---
+
+    # --- Obtener precios y límites desde SUBSCRIPTION_PLANS --- 
     basic_plan = SUBSCRIPTION_PLANS.get('BASIC', {})
     premium_plan = SUBSCRIPTION_PLANS.get('PREMIUM', {})
     basic_price = basic_plan.get('price', 'N/A')
@@ -1053,26 +1100,39 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     premium_limit = premium_plan.get('daily_messages', 'N/A')
     # ------------------------------------------------------
     
+    # --- Botones Inline (texto bilingüe manual) ---
     keyboard = [
         [
-            # Usar constantes obtenidas
-            InlineKeyboardButton(f"💎 Plan Basic - {basic_price}€/mes", callback_data=f"upgrade_basic_{basic_price_id}"),
+            InlineKeyboardButton(f"💎 Basic ({basic_price}€/mes) / Basic (€{basic_price}/month)", callback_data=f"upgrade_basic_{basic_price_id}"),
         ],
         [
-            # Usar constantes obtenidas
-            InlineKeyboardButton(f"👑 Plan Premium - {premium_price}€/mes", callback_data=f"upgrade_premium_{premium_price_id}"),
+            InlineKeyboardButton(f"👑 Premium ({premium_price}€/mes) / Premium (€{premium_price}/month)", callback_data=f"upgrade_premium_{premium_price_id}"),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
+    # --------------------------------------------
 
-    # --- Usar get_text para el mensaje ---
-    title = get_text('upgrade_title', lang, default="Selecciona el plan al que quieres actualizar:")
-    basic_desc = get_text('upgrade_basic_desc', lang, default="💎 **Plan Basic ({price}€/mes):**\n- {limit} mensajes/día").format(price=basic_price, limit=basic_limit)
-    premium_desc = get_text('upgrade_premium_desc', lang, default="👑 **Plan Premium ({price}€/mes):**\n- {limit} mensajes/día").format(price=premium_price, limit=premium_limit)
-    footer = get_text('upgrade_footer', lang, default="*Serás redirigido a Stripe para completar el pago seguro.*")
+    # --- Construir Texto Descriptivo Bilingüe --- 
+    upgrade_text_keys = [
+        'upgrade_title',
+        'upgrade_basic_desc',
+        'upgrade_premium_desc',
+        'upgrade_footer'
+    ]
     
-    message_text = f"{title}\n\n{basic_desc}\n\n{premium_desc}\n\n{footer}"
-    # -----------------------------------
+    # Pasar precios y límites como kwargs para formatear dentro de create_bilingual_block
+    format_args = {
+        'basic_price': basic_price,
+        'basic_limit': basic_limit,
+        'premium_price': premium_price,
+        'premium_limit': premium_limit
+    }
+    
+    message_text = create_bilingual_block(upgrade_text_keys, 
+                                          join_char="\n\n", # Doble salto de línea entre descripciones
+                                          separator="\n\n---\n\n", 
+                                          **format_args)
+    # -------------------------------------------
 
     await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
@@ -1233,67 +1293,85 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data = get_user(user_id)
 
     if not user_data:
-        await update.message.reply_text(get_text('error_no_user_data', lang))
+        # Si no hay datos, intentar enviar mensaje bilingüe
+        error_msg = create_bilingual_block(['error_no_user_data'])
+        await update.message.reply_text(error_msg)
         return
 
-    # Acceder a los datos usando los nombres de columna correctos de la BD
+    # --- Calcular Datos Dinámicos ---
     current_plan = user_data['plan']
     daily_messages = user_data['daily_messages']
     expiry_date_str = user_data['expiry_date']
+    plan_name_key = f'plan_{current_plan.lower()}_name' # Crear clave dinámica para nombre plan si existe
+    plan_name_en = get_text(plan_name_key, 'en', default=current_plan.capitalize())
+    plan_name_es = get_text(plan_name_key, 'es', default=current_plan.capitalize())
     
-    plan_name = current_plan.capitalize()
     plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
-    expiry_date_formatted = "N/A"
+    expiry_date_formatted_en = "N/A"
+    expiry_date_formatted_es = "N/D"
     if expiry_date_str and current_plan.upper() != 'FREE':
         try:
-            expiry_date = datetime.fromisoformat(expiry_date_str.replace('Z', '+00:00'))
-            expiry_date_formatted = expiry_date.strftime('%d-%m-%Y')
+            # Usar formato consistente ISO y luego formatear para cada idioma si es necesario
+            expiry_date = datetime.fromisoformat(expiry_date_str.replace('Z', '+00:00')) 
+            expiry_date_formatted_en = expiry_date.strftime('%Y-%m-%d') # Formato EN/ISO
+            expiry_date_formatted_es = expiry_date.strftime('%d-%m-%Y') # Formato ES
         except ValueError:
-            try:
-                expiry_date = datetime.strptime(expiry_date_str, '%d-%m-%Y')
-                expiry_date_formatted = expiry_date.strftime('%d-%m-%Y')
-            except ValueError:
-                logging.error(f"Error al parsear la fecha de expiración '{expiry_date_str}' para el usuario {user_id}")
-                expiry_date_formatted = get_text('plan_expiry_error', lang, default="Fecha inválida")
-
-    plan_info_title = get_text('plan_title', lang)
-    plan_info_name = f"**{plan_name}**"
-    # Pasar daily_messages y plan_limit a la plantilla si es necesario
-    plan_info_messages = f"{get_text('plan_messages_today', lang)} {daily_messages}/{plan_limit}"
-    
-    plan_info_expires = ""
-    if current_plan.upper() != 'FREE':
-        # Pasar expiry_date_formatted como argumento 'expiry_date'
-        plan_info_expires = get_text('plan_expires', lang).format(expiry_date=expiry_date_formatted)
-
-    available_plans_title = get_text('plan_available_title', lang)
-    
-    # Obtener precios y límites
+            logging.error(f"Error al parsear la fecha de expiración '{expiry_date_str}' para el usuario {user_id}")
+            expiry_date_formatted_en = get_text('plan_expiry_error', 'en', default="Invalid date")
+            expiry_date_formatted_es = get_text('plan_expiry_error', 'es', default="Fecha inválida")
+            
+    # Obtener precios y límites para todos los planes
     free_limit = SUBSCRIPTION_PLANS.get('FREE', {}).get('daily_messages', 0)
     basic_limit = SUBSCRIPTION_PLANS.get('BASIC', {}).get('daily_messages', 0)
     premium_limit = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('daily_messages', 0)
     basic_price = SUBSCRIPTION_PLANS.get('BASIC', {}).get('price', 'N/A')
     premium_price = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('price', 'N/A')
+    # --------------------------------
 
-    # Asegurarse de pasar los argumentos correctos
-    plan_free_desc = get_text('plan_free_desc', lang).format(limit=free_limit)
-    plan_basic_desc = get_text('plan_basic_desc', lang).format(limit=basic_limit, price=basic_price)
-    plan_premium_desc = get_text('plan_premium_desc', lang).format(limit=premium_limit, price=premium_price)
-
-    if current_plan.upper() == 'FREE':
-        upgrade_cta = get_text('plan_upgrade_cta_free', lang)
-    else:
-        upgrade_cta = get_text('plan_upgrade_cta_paid', lang)
-
-    full_message = (
-        f"{plan_info_title}\n{plan_info_name}\n{plan_info_messages}\n{plan_info_expires}\n\n"
-        f"{available_plans_title}\n"
-        f"{plan_free_desc}\n"
-        f"{plan_basic_desc}\n"
-        f"{plan_premium_desc}\n\n"
-        f"{upgrade_cta}"
+    # --- Construir Bloque Inglés ---
+    plan_info_expires_en = ""
+    if current_plan.upper() != 'FREE':
+        plan_info_expires_en = get_text('plan_expires', 'en').format(expiry_date=expiry_date_formatted_en)
+        
+    block_en = (
+        f"{get_text('plan_title', 'en')}\n"
+        f"**{plan_name_en}**\n" 
+        f"{get_text('plan_messages_today', 'en')} {daily_messages}/{plan_limit}\n"
+        f"{plan_info_expires_en}\n\n"
+        f"{get_text('plan_available_title', 'en')}\n"
+        f"{get_text('plan_free_desc', 'en').format(limit=free_limit)}\n"
+        f"{get_text('plan_basic_desc', 'en').format(limit=basic_limit, price=basic_price)}\n"
+        f"{get_text('plan_premium_desc', 'en').format(limit=premium_limit, price=premium_price)}"
     )
+    # --------------------------------
+    
+    # --- Construir Bloque Español ---
+    plan_info_expires_es = ""
+    if current_plan.upper() != 'FREE':
+        plan_info_expires_es = get_text('plan_expires', 'es').format(expiry_date=expiry_date_formatted_es)
+
+    block_es = (
+        f"{get_text('plan_title', 'es')}\n"
+        f"**{plan_name_es}**\n"
+        f"{get_text('plan_messages_today', 'es')} {daily_messages}/{plan_limit}\n"
+        f"{plan_info_expires_es}\n\n"
+        f"{get_text('plan_available_title', 'es')}\n"
+        f"{get_text('plan_free_desc', 'es').format(limit=free_limit)}\n"
+        f"{get_text('plan_basic_desc', 'es').format(limit=basic_limit, price=basic_price)}\n"
+        f"{get_text('plan_premium_desc', 'es').format(limit=premium_limit, price=premium_price)}"
+    )
+    # --------------------------------
+    
+    # --- Construir CTA Bilingüe ---
+    cta_key = 'plan_upgrade_cta_free' if current_plan.upper() == 'FREE' else 'plan_upgrade_cta_paid'
+    cta_bilingual = create_bilingual_block([cta_key], separator="\n") # Separador simple para CTA
+    # --------------------------------
+
+    # --- Combinar Todo ---
+    separator = "\n\n---\n\n"
+    full_message = f"{block_en}{separator}{block_es}\n\n{cta_bilingual}" 
+    # --------------------------------
 
     await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
 

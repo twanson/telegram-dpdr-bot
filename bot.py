@@ -2017,10 +2017,24 @@ async def manage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 4. Enviar enlace o mensaje de error
     if portal_url:
-        portal_link_text = create_bilingual_block(['manage_portal_link_message'], separator="\n")
+        # --- Construir mensaje bilingüe manualmente (ES / EN) ---
+        link_message_es = get_text('manage_portal_link_message', 'es', default="Haz clic aquí para gestionar tu suscripción (cancelar, actualizar pago, etc.):")
+        notice_es = get_text('upgrade_desktop_copy_notice', 'es', default="\n\n*Nota para usuarios de Escritorio:* Si el botón no abre el enlace directamente, por favor, copia la URL del botón (clic derecho > Copiar enlace) y pégala en tu navegador.")
+        message_es = f"{link_message_es}{notice_es}"
+
+        link_message_en = get_text('manage_portal_link_message', 'en', default="Click here to manage your subscription (cancel, update payment, etc.):")
+        notice_en = get_text('upgrade_desktop_copy_notice', 'en', default="\n\n*Note for Desktop users:* If the button doesn't open the link directly, please copy the button's URL (right-click > Copy link) and paste it into your browser.")
+        message_en = f"{link_message_en}{notice_en}"
+
+        if message_es != message_en:
+            full_message_text = f"{message_es}\n\n---\n\n{message_en}"
+        else:
+            full_message_text = message_es
+        # ------------------------------------------------------
+
         keyboard = [[InlineKeyboardButton("➡️ Gestionar Suscripción / Manage Subscription", url=portal_url)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await update.message.reply_text(portal_link_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
         logging.info(f"manage_command: Enlace al portal enviado a user {user_id}")
     else:
         logging.error(f"manage_command: No se pudo generar URL del portal para customer {customer_id}")

@@ -5,6 +5,7 @@ import time
 import sys
 import sqlite3 # <-- Añadir importación
 import re # <--- Añadir import
+import asyncio # <-- Añadir import
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.constants import ParseMode # <-- Importación corregida
 from telegram.ext import (
@@ -158,6 +159,7 @@ LOCALES = {
         'support_confirmation': "Gracias. Tu consulta ha sido enviada al equipo de soporte. Te contactarán si es necesario.",
         'support_cancel_confirmation': "De acuerdo, se canceló la solicitud de soporte.",
         'faq_removing_keyboard': "Cargando opciones...",
+        'error_request_in_progress': "Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.", # <-- Añadido
     },
     'en': {
         # FAQ Buttons
@@ -230,6 +232,7 @@ LOCALES = {
         'support_confirmation': "Thank you. Your query has been sent to the support team. They will contact you if necessary.",
         'support_cancel_confirmation': "Okay, the support request has been cancelled.",
         'faq_removing_keyboard': "Loading options...",
+        'error_request_in_progress': "I'm currently processing your previous request. Please wait a moment before sending a new one.", # <-- Added
     }
 }
 
@@ -632,130 +635,151 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 async def process_user_input(user_id: int, lang: str, message_text: str, context: ContextTypes.DEFAULT_TYPE, update: Update):
     """Lógica principal para procesar una entrada de texto del usuario (mensaje o botón FAQ)."""
     
-    # 0. Usar get_user que maneja creación/actualización de contadores
-    user_data = get_user(user_id)
-    if not user_data:
-        await update.message.reply_text(get_text('error_no_user_data', lang))
-        return
-
-    current_plan = user_data['plan']
-    daily_messages = user_data['daily_messages']
-    thread_id_from_db = user_data['openai_thread_id'] 
-    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
-
-    # 1. Verificar límite de mensajes
-    if daily_messages >= plan_limit:
-        plan_name = current_plan.capitalize()
-        limit_msg_1 = get_text('limit_reached_1', lang)
-        limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
-        limit_cta = get_text('limit_reached_cta', lang)
-        full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
-        # Necesitamos enviar la respuesta de forma diferente si viene de un callback
+    # --- Bloqueo para solicitudes concurrentes ---
+    user_context = context.user_data.setdefault(user_id, {}) # Asegurar que el diccionario existe
+    if user_context.get('is_processing', False):
+        wait_message = get_text('error_request_in_progress', lang, default="Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.")
         if update.callback_query:
-             await update.callback_query.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+             # Responder al callback y enviar mensaje
+             await update.callback_query.answer(wait_message, show_alert=True) 
         else:
-             await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+             await update.message.reply_text(wait_message)
         return
-
-    # 2. Incrementar contador de mensajes (usando la función helper)
-    update_user_usage(user_id, message_increment=1)
-
-    # --- Lógica OpenAI --- 
-    client = context.user_data.get('openai_client')
-    current_thread_id = context.user_data.get('openai_thread_id')
-
-    if not client or not current_thread_id:
-        logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
-        client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-        current_thread_id = thread_id_from_db
-        if not current_thread_id:
-            logging.info(f"Creando nuevo thread para {user_id} dentro de process_user_input.")
-            thread = client.beta.threads.create()
-            current_thread_id = thread.id
-            update_user_thread_id(user_id, current_thread_id)
-        
-        context.user_data['openai_client'] = client
-        context.user_data['openai_thread_id'] = current_thread_id
-
+    # --- Fin Bloqueo ---
+    
+    user_context['is_processing'] = True # Marcar como procesando
+    
     try:
-        use_gpt4 = False
-        # TODO: Re-evaluar si necesitamos CHECK_CRITICAL_KEYWORDS globalmente
-        # if CHECK_CRITICAL_KEYWORDS: 
-        #     for keyword in CRITICAL_KEYWORDS:
-        #         if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
-        #             use_gpt4 = True
-        #             logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
-        #             break
+        # 0. Usar get_user que maneja creación/actualización de contadores
+        user_data = get_user(user_id)
+        if not user_data:
+            user_context['is_processing'] = False # Desbloquear en caso de error temprano
+            await update.message.reply_text(get_text('error_no_user_data', lang))
+            return
 
-        # TODO: Implementar selección de modelo (gpt-4o vs gpt-4o-mini)
-        # model_to_use = "gpt-4o" if use_gpt4 else "gpt-4o-mini"
+        current_plan = user_data['plan']
+        daily_messages = user_data['daily_messages']
+        thread_id_from_db = user_data['openai_thread_id'] 
+        plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
-        logging.info(f"Enviando mensaje del usuario {user_id} al thread {current_thread_id}: '{message_text[:50]}...'")
-        client.beta.threads.messages.create(
-            thread_id=current_thread_id,
-            role="user",
-            content=message_text, 
-        )
+        # 1. Verificar límite de mensajes
+        if daily_messages >= plan_limit:
+            user_context['is_processing'] = False # Desbloquear
+            plan_name = current_plan.capitalize()
+            limit_msg_1 = get_text('limit_reached_1', lang)
+            limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
+            limit_cta = get_text('limit_reached_cta', lang)
+            full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
+            if update.callback_query:
+                 await update.callback_query.answer() # Responder primero al callback
+                 await update.callback_query.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+            else:
+                 await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+            return
 
-        # Ejecutar Asistente
-        run = client.beta.threads.runs.create(
-            thread_id=current_thread_id,
-            assistant_id=ASSISTANT_ID,
-            # model=model_to_use 
-        )
+        # 2. Incrementar contador de mensajes (usando la función helper)
+        update_user_usage(user_id, message_increment=1)
 
-        # Mensaje de espera (opcional, añadir si se desea)
-        # await update.message.reply_chat_action(action='typing')
+        # --- Lógica OpenAI --- 
+        client = user_context.get('openai_client') # Obtener de user_context
+        current_thread_id = user_context.get('openai_thread_id') # Obtener de user_context
 
-        # Esperar finalización
-        run_id = run.id # Guardar run_id para feedback
-        while run.status not in ["completed", "failed", "cancelled", "expired"]:
-            await asyncio.sleep(1)
-            run = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
-            logging.debug(f"Run status para user {user_id}: {run.status}")
-
-        if run.status == "completed":
-            messages = client.beta.threads.messages.list(thread_id=current_thread_id, order="desc", limit=1)
-            assistant_message = messages.data[0].content[0].text.value
-            logging.info(f"Respuesta recibida del asistente para el usuario {user_id}")
-
-            # Guardar info para feedback
-            context.user_data[user_id] = context.user_data.get(user_id, {})
-            context.user_data[user_id]['last_assistant_message_info'] = {
-                 'user_query': message_text,
-                 'assistant_response': assistant_message,
-                 'thread_id': current_thread_id,
-                 'run_id': run_id
-             }
-
-            # Enviar respuesta con botones de feedback
-            keyboard = [
-                [InlineKeyboardButton(get_text('feedback_useful', lang), callback_data='feedback_useful')],
-                [InlineKeyboardButton(get_text('feedback_not_useful', lang), callback_data='feedback_not_useful')]
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+        if not client or not current_thread_id:
+            logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
+            client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
+            current_thread_id = thread_id_from_db
+            if not current_thread_id:
+                logging.info(f"Creando nuevo thread para {user_id} dentro de process_user_input.")
+                thread = client.beta.threads.create()
+                current_thread_id = thread.id
+                update_user_thread_id(user_id, current_thread_id)
             
-            # Necesitamos enviar la respuesta de forma diferente si viene de un callback
-            if update.callback_query:
-                 await update.callback_query.message.reply_text(assistant_message, reply_markup=reply_markup)
-            else:
-                 await update.message.reply_text(assistant_message, reply_markup=reply_markup)
+            user_context['openai_client'] = client
+            user_context['openai_thread_id'] = current_thread_id
 
-        else:
-            logging.error(f"La ejecución del asistente falló para el usuario {user_id} con estado: {run.status}")
-            error_text = get_text('error_openai_run', lang, default="Lo siento, no pude procesar tu solicitud en este momento.")
-            if update.callback_query:
-                 await update.callback_query.message.reply_text(error_text)
-            else:
-                 await update.message.reply_text(error_text)
+        # -- Sub-Try para la interacción OpenAI específica --
+        try:
+            use_gpt4 = False
+            # TODO: Re-evaluar si necesitamos CHECK_CRITICAL_KEYWORDS globalmente
+            # if CHECK_CRITICAL_KEYWORDS: 
+            #     for keyword in CRITICAL_KEYWORDS:
+            #         if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
+            #             use_gpt4 = True
+            #             logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
+            #             break
 
-    except Exception as e:
-        logging.error(f"Error inesperado al procesar input del usuario {user_id}: {e}", exc_info=True)
-        error_message = get_text('error_generic', lang).format(error=str(e))
-        if update.callback_query:
-             await update.callback_query.message.reply_text(error_message)
-        else:
-             await update.message.reply_text(error_message)
+            # TODO: Implementar selección de modelo (gpt-4o vs gpt-4o-mini)
+            # model_to_use = "gpt-4o" if use_gpt4 else "gpt-4o-mini"
+
+            logging.info(f"Enviando mensaje del usuario {user_id} al thread {current_thread_id}: '{message_text[:50]}...'")
+            client.beta.threads.messages.create(
+                thread_id=current_thread_id,
+                role="user",
+                content=message_text, 
+            )
+
+            run = client.beta.threads.runs.create(
+                thread_id=current_thread_id,
+                assistant_id=ASSISTANT_ID,
+                # model=model_to_use 
+            )
+
+            run_id = run.id
+            while run.status not in ["completed", "failed", "cancelled", "expired"]:
+                await asyncio.sleep(1)
+                run = client.beta.threads.runs.retrieve(thread_id=current_thread_id, run_id=run.id)
+                logging.debug(f"Run status para user {user_id}: {run.status}")
+
+            if run.status == "completed":
+                messages = client.beta.threads.messages.list(thread_id=current_thread_id, order="desc", limit=1)
+                assistant_message = messages.data[0].content[0].text.value
+                logging.info(f"Respuesta recibida del asistente para el usuario {user_id}")
+                
+                # Asegurar que user_context existe antes de guardar
+                user_context['last_assistant_message_info'] = {
+                     'user_query': message_text,
+                     'assistant_response': assistant_message,
+                     'thread_id': current_thread_id,
+                     'run_id': run_id
+                 }
+
+                keyboard = [
+                    [InlineKeyboardButton(get_text('feedback_useful', lang), callback_data='feedback_useful')],
+                    [InlineKeyboardButton(get_text('feedback_not_useful', lang), callback_data='feedback_not_useful')]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                if update.callback_query:
+                     # Es importante responder al callback original si aún no se ha hecho
+                     try: await update.callback_query.answer() 
+                     except Exception: pass # Ignorar si ya se respondió (p.ej. en bloqueo)
+                     await update.callback_query.message.reply_text(assistant_message, reply_markup=reply_markup)
+                else:
+                     await update.message.reply_text(assistant_message, reply_markup=reply_markup)
+
+            else:
+                logging.error(f"La ejecución del asistente falló para el usuario {user_id} con estado: {run.status}")
+                error_text = get_text('error_openai_run', lang, default="Lo siento, no pude procesar tu solicitud en este momento.")
+                if update.callback_query:
+                    try: await update.callback_query.answer() 
+                    except Exception: pass
+                    await update.callback_query.message.reply_text(error_text)
+                else:
+                     await update.message.reply_text(error_text)
+
+        except Exception as e_openai:
+            logging.error(f"Error durante la interacción con OpenAI para {user_id}: {e_openai}", exc_info=True)
+            error_message = get_text('error_generic', lang).format(error=str(e_openai))
+            if update.callback_query:
+                try: await update.callback_query.answer() 
+                except Exception: pass
+                await update.callback_query.message.reply_text(error_message)
+            else:
+                 await update.message.reply_text(error_message)
+                 
+    finally:
+         # Asegurarse de desbloquear al usuario independientemente del resultado
+         user_context['is_processing'] = False
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

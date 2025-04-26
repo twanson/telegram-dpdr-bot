@@ -1680,6 +1680,42 @@ async def admin_list_users_command(update: Update, context: ContextTypes.DEFAULT
     if message_part != header: # Asegurar que hay contenido para enviar
          await update.message.reply_text(message_part, parse_mode='Markdown')
 
+# --- Comando Temporal Admin: Fijar Customer ID ---
+async def admin_set_customer_id_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """[ADMIN] Establece manualmente el Stripe Customer ID para un usuario."""
+    admin_id = update.effective_user.id
+
+    # 1. Verificar si es admin
+    if admin_id not in ADMIN_IDS:
+        await update.message.reply_text("⛔ No tienes permiso para usar este comando.")
+        return
+
+    # 2. Parsear y validar argumentos (user_id, customer_id)
+    if len(context.args) != 2:
+        await update.message.reply_text("⚠️ Uso: /set_customer_id <user_id> <stripe_customer_id>")
+        return
+
+    try:
+        target_user_id = int(context.args[0])
+        target_customer_id = context.args[1]
+        if not target_customer_id.startswith("cus_"):
+             await update.message.reply_text("⚠️ El ID de cliente debe empezar por 'cus_'.")
+             return
+    except ValueError:
+        await update.message.reply_text("❌ Error: <user_id> debe ser un número.")
+        return
+
+    # 3. Actualizar base de datos usando la función existente
+    success = update_user_stripe_customer_id(target_user_id, target_customer_id)
+
+    # 4. Confirmar al admin
+    if success:
+        await update.message.reply_text(f"✅ Stripe Customer ID actualizado para `{target_user_id}`: `{target_customer_id}`", parse_mode='Markdown')
+    else:
+        await update.message.reply_text(f"❌ Error al actualizar el Customer ID para `{target_user_id}`.")
+
+# --- Fin Comando Temporal ---
+
 # --- Funciones para la Conversación "Explicar a Otros" ---
 async def explain_entry(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Inicia la conversación para explicar algo a otros."""
@@ -2068,6 +2104,7 @@ def main():
         application.add_handler(CommandHandler("set_plan", admin_set_plan_command))
         application.add_handler(CommandHandler("view_feedback", admin_view_feedback_command))
         application.add_handler(CommandHandler("list_users", admin_list_users_command))
+        application.add_handler(CommandHandler("set_customer_id", admin_set_customer_id_command))
         # -------------------------------
 
         logging.info("Bot initialized successfully")

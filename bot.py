@@ -1429,7 +1429,9 @@ async def feedback_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except KeyError:
              logging.warning(f"No se pudo encontrar last_assistant_message_info para limpiar para user {user.id}")
     else:
-        # ... (feedback genérico) ...
+        # Si no hay info del último mensaje, simplemente agradecer genéricamente
+        await query.edit_message_reply_markup(reply_markup=None) # Eliminar botones
+        await query.message.reply_text(get_text('feedback_thanks_generic', lang))
 
 def main():
     logging.info("Starting bot...")

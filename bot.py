@@ -182,6 +182,7 @@ LOCALES = {
         # Explain Conversation
         'processing_request': "🧠 Procesando tu solicitud... Por favor, espera un momento.", # <-- Añadido
         'consulting_knowledge_base': "Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.", # <-- Añadido
+        'upgrade_desktop_copy_notice': "\n\n*Nota para usuarios de Escritorio:* Si el botón no abre el enlace directamente, por favor, copia la URL del botón (clic derecho > Copiar enlace) y pégala en tu navegador.", # <-- Añadido
     },
     'en': {
         # FAQ Buttons
@@ -272,6 +273,7 @@ LOCALES = {
         'error_stripe_specific': "Payment Error: {error}", # <-- Added
         'processing_request': "🧠 Processing your request... Please wait a moment.", # <-- Added
         'consulting_knowledge_base': "Consulting the knowledge base... 🧠 Please wait a few moments while I prepare your answer.", # <-- Added
+        'upgrade_desktop_copy_notice': "\n\n*Note for Desktop users:* If the button doesn't open the link directly, please copy the button's URL (right-click > Copy link) and paste it into your browser.", # <-- Added
     }
 }
 
@@ -1184,12 +1186,15 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         # ----------------------------------
 
         payment_link_text = get_text('upgrade_payment_link_message', lang, default="Haz clic aquí para completar tu suscripción:")
+        desktop_notice = get_text('upgrade_desktop_copy_notice', lang) # <-- Obtener nota
+        full_message_text = payment_link_text + desktop_notice # <-- Combinar textos
+
         # Asegurarse de que session_url no es None antes de usarlo
         if session_url:
             # --- Enviar enlace como Botón Inline --- 
-            keyboard = [[InlineKeyboardButton("➡️ Pagar Ahora en Stripe", url=session_url)]]
+            keyboard = [[InlineKeyboardButton("➡️ Pagar Ahora en Stripe / Pay Now on Stripe", url=session_url)]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            await query.message.reply_text(payment_link_text, reply_markup=reply_markup)
+            await query.message.reply_text(full_message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN) # <-- Usar texto combinado
             # ---------------------------------------
             logging.info(f"upgrade_button_handler: Enlace de pago enviado a user {user_id}")
         else:

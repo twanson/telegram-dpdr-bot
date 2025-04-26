@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 try:
     from bot import (
         update_user_plan,
+        update_user_stripe_customer_id,
         STRIPE_PRICE_ID_BASIC,
         STRIPE_PRICE_ID_PREMIUM,
         SUBSCRIPTION_PLANS # Necesario si quieres loguear el nombre del plan
@@ -24,6 +25,7 @@ except ImportError as e:
     logging.error(f"Error importando desde bot.py: {e}. El procesamiento de webhooks fallará.")
     # Definir stubs para evitar errores al iniciar si falla la importación
     def update_user_plan(user_id, plan, expiry): pass
+    def update_user_stripe_customer_id(user_id, customer_id): pass
     STRIPE_PRICE_ID_BASIC = None
     STRIPE_PRICE_ID_PREMIUM = None
     SUBSCRIPTION_PLANS = {}
@@ -133,14 +135,25 @@ async def stripe_webhook(): # <<< Hacer la función async >>>
         client_reference_id = session.get('client_reference_id')
         subscription_id = session.get('subscription')
         payment_status = session.get('payment_status')
-        logging.info(f"[Webhook] Datos extraídos: client_ref='{client_reference_id}', sub_id='{subscription_id}', payment_status='{payment_status}'")
+        stripe_customer_id = session.get('customer')
+        logging.info(f"[Webhook] Datos extraídos: client_ref='{client_reference_id}', sub_id='{subscription_id}', payment_status='{payment_status}', customer_id='{stripe_customer_id}'")
 
-        if payment_status == 'paid' and client_reference_id and subscription_id:
+        if payment_status == 'paid' and client_reference_id and subscription_id and stripe_customer_id:
             logging.info("[Webhook] Condición payment_status=='paid' y IDs presentes CUMPLIDA.")
             try:
                 logging.info("[Webhook] Entrando en el bloque try para procesar datos...")
                 user_id = int(client_reference_id)
                 logging.info(f"[Webhook] User ID parseado: {user_id}")
+
+                # Guardar el Customer ID de Stripe en la BD
+                try:
+                    if callable(update_user_stripe_customer_id):
+                        update_user_stripe_customer_id(user_id, stripe_customer_id)
+                    else:
+                         logging.error("[Webhook] ❌ update_user_stripe_customer_id no es callable.")
+                except Exception as e_cust:
+                    logging.error(f"[Webhook] ❌ Excepción al llamar a update_user_stripe_customer_id: {e_cust}")
+                # --- Fin guardar customer ID ---
 
                 logging.info(f"[Webhook] Intentando obtener detalles de suscripción: {subscription_id}")
                 try:
@@ -248,9 +261,9 @@ def stripe_cancel():
     </head>
     <body>
         <h1>Pago Cancelado</h1>
-        <p>El proceso de pago ha sido cancelado.</p>
-        <p>Puedes cerrar esta ventana y volver a Telegram si deseas intentarlo de nuevo.</p>
-        <p>😅</p>
+        <p>Has cancelado el proceso de pago.</p>
+        <p>Puedes cerrar esta ventana y volver a Telegram. Si cambias de opinión, puedes usar /upgrade de nuevo.</p>
+        <p>😕</p>
     </body>
     </html>
     """

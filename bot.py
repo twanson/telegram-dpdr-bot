@@ -463,6 +463,13 @@ def init_db():
             except sqlite3.OperationalError as e:
                 if "duplicate column name" not in str(e): raise e
 
+        # Añadir columna stripe_customer_id si no existe
+        try:
+            c.execute("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT")
+            logging.info("Columna 'stripe_customer_id' añadida a la tabla 'users'.")
+        except sqlite3.OperationalError as e:
+            if "duplicate column name" not in str(e): raise e # Ignorar si ya existe
+
         # Crear tabla de feedback si no existe, con todos los campos finales
         c.execute("""
             CREATE TABLE IF NOT EXISTS feedback (
@@ -704,6 +711,23 @@ def update_user_thread_id(user_id: int, thread_id: str | None):
         return True
     except sqlite3.Error as e:
         logging.error(f"Error actualizando thread_id para {user_id}: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+
+def update_user_stripe_customer_id(user_id: int, customer_id: str | None):
+    """Actualiza o borra el stripe_customer_id de un usuario."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("UPDATE users SET stripe_customer_id = ? WHERE user_id = ?", (customer_id, user_id))
+        conn.commit()
+        logging.info(f"Stripe Customer ID actualizado para {user_id}: {'Borrado' if customer_id is None else customer_id}")
+        return True
+    except sqlite3.Error as e:
+        logging.error(f"Error actualizando Stripe Customer ID para {user_id}: {e}")
         return False
     finally:
         if conn:

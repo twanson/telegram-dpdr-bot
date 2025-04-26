@@ -175,14 +175,18 @@ LOCALES = {
         'error_stripe_specific': "Error de pago: {error}",
         # Upgrade Command Text
         'upgrade_title': "Selecciona el plan al que quieres actualizar:",
-        'upgrade_basic_desc': "💎 **Plan Basic ({price}€/mes):**\n- {limit} mensajes/día",
-        'upgrade_premium_desc': "👑 **Plan Premium ({price}€/mes):**\n- {limit} mensajes/día",
+        'upgrade_basic_desc': "💎 **Plan Basic ({basic_price}€/mes):**\n- {basic_limit} mensajes/día",
+        'upgrade_premium_desc': "👑 **Plan Premium ({premium_price}€/mes):**\n- {premium_limit} mensajes/día",
         'upgrade_footer': "*Serás redirigido a Stripe para completar el pago seguro.*",
         'error_stripe_ids_missing': "Lo siento, la opción de mejora de plan no está configurada correctamente.",
         # Explain Conversation
         'processing_request': "🧠 Procesando tu solicitud... Por favor, espera un momento.", # <-- Añadido
         'consulting_knowledge_base': "Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.", # <-- Añadido
         'upgrade_desktop_copy_notice': "\n\n*Nota para usuarios de Escritorio:* Si el botón no abre el enlace directamente, por favor, copia la URL del botón (clic derecho > Copiar enlace) y pégala en tu navegador.", # <-- Añadido
+        # Nombres de Planes
+        'plan_free_name': "Gratuito",
+        'plan_basic_name': "Básico",
+        'plan_premium_name': "Premium",
     },
     'en': {
         # FAQ Buttons
@@ -258,8 +262,8 @@ LOCALES = {
         'error_processing_selection': "Error processing selection. Please try again.",
         # Upgrade Command Text
         'upgrade_title': "Select the plan you want to upgrade to:",
-        'upgrade_basic_desc': "💎 **Basic Plan (€{price}/month):**\n- {limit} messages/day",
-        'upgrade_premium_desc': "👑 **Premium Plan (€{price}/month):**\n- {limit} messages/day",
+        'upgrade_basic_desc': "💎 **Basic Plan (€{basic_price}/month):**\n- {basic_limit} messages/day", # <-- Placeholder changed
+        'upgrade_premium_desc': "👑 **Premium Plan (€{premium_price}/month):**\n- {premium_limit} messages/day", # <-- Placeholder changed
         'upgrade_footer': "*You will be redirected to Stripe to complete the secure payment.*",
         'error_stripe_ids_missing': "Sorry, the plan upgrade option is not configured correctly.",
         # Explain Conversation
@@ -274,12 +278,17 @@ LOCALES = {
         'processing_request': "🧠 Processing your request... Please wait a moment.", # <-- Added
         'consulting_knowledge_base': "Consulting the knowledge base... 🧠 Please wait a few moments while I prepare your answer.", # <-- Added
         'upgrade_desktop_copy_notice': "\n\n*Note for Desktop users:* If the button doesn't open the link directly, please copy the button's URL (right-click > Copy link) and paste it into your browser.", # <-- Added
+        # Plan Names
+        'plan_free_name': "Free",
+        'plan_basic_name': "Basic",
+        'plan_premium_name': "Premium",
     }
 }
 
-def get_text(key: str, lang_code: str | None = 'en', **kwargs) -> str:
+def get_text(key: str, lang_code: str | None = 'en', default: str | None = None, **kwargs) -> str:
     """Obtiene el texto traducido basado en el código de idioma y formatea con kwargs.
     Usa 'en' como fallback si el idioma o la clave no existen.
+    Usa 'default' si la clave no se encuentra en ningún idioma.
     """
     # Determinar el idioma a usar, con fallback a 'en'
     lang = lang_code if lang_code in LOCALES else 'en'
@@ -290,14 +299,10 @@ def get_text(key: str, lang_code: str | None = 'en', **kwargs) -> str:
     if text_template is None and lang != 'en':
         text_template = LOCALES.get('en', {}).get(key)
     
-    # Si la clave no existe ni en el idioma solicitado ni en 'en', devolver la clave misma
+    # Si la clave no existe ni en el idioma solicitado ni en 'en', usar default o devolver clave
     if text_template is None:
-        logging.warning(f"[get_text] Text key '{key}' not found in '{lang}' or 'en' locales.")
-        # Devolver la clave formateada si es posible, o la clave cruda
-        try:
-            return key.format(**kwargs) 
-        except KeyError:
-             return key
+        logging.warning(f"[get_text] Text key '{key}' not found in '{lang}' or 'en' locales. Using default.")
+        text_template = default if default is not None else key
     
     # Formatear la plantilla con los argumentos proporcionados
     try:
@@ -1042,11 +1047,16 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = user.language_code or 'en'
 
-    # --- Botones (se mantienen usando get_text normal) ---
+    # --- Botones (ahora bilingües usando create_bilingual_block) ---
+    # Usamos un separador simple para los botones
+    btn_separator = " / " 
     keyboard = [
-        [get_text('faq_understand_dpdr', lang), get_text('faq_general_anxiety', lang)],
-        [get_text('faq_symptoms', lang), get_text('faq_exercises', lang)],
-        [get_text('faq_explain_other', lang), get_text('faq_resources', lang)]
+        [create_bilingual_block(['faq_understand_dpdr'], separator=btn_separator), 
+         create_bilingual_block(['faq_general_anxiety'], separator=btn_separator)],
+        [create_bilingual_block(['faq_symptoms'], separator=btn_separator), 
+         create_bilingual_block(['faq_exercises'], separator=btn_separator)],
+        [create_bilingual_block(['faq_explain_other'], separator=btn_separator), 
+         create_bilingual_block(['faq_resources'], separator=btn_separator)]
     ]
     reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
     # ------------------------------------------------------

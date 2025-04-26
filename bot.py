@@ -187,6 +187,12 @@ LOCALES = {
         'plan_free_name': "Gratuito",
         'plan_basic_name': "Básico",
         'plan_premium_name': "Premium",
+        # Manage Subscription / Portal
+        'manage_command_description': "/manage - Gestiona tu suscripción activa",
+        'manage_no_subscription': "No parece que tengas una suscripción activa para gestionar. Puedes empezar una con /upgrade.",
+        'manage_generating_portal': "Generando enlace a tu portal de gestión...",
+        'manage_portal_link_message': "Haz clic aquí para gestionar tu suscripción (cancelar, actualizar pago, etc.):",
+        'manage_portal_error': "Lo siento, hubo un error al generar el enlace a tu portal de gestión. Por favor, inténtalo de nuevo más tarde o contacta con soporte.",
     },
     'en': {
         # FAQ Buttons
@@ -284,6 +290,12 @@ LOCALES = {
         'plan_free_name': "Free",
         'plan_basic_name': "Basic",
         'plan_premium_name': "Premium",
+        # Manage Subscription / Portal
+        'manage_command_description': "/manage - Manage your active subscription",
+        'manage_no_subscription': "It doesn't seem like you have an active subscription to manage. You can start one with /upgrade.",
+        'manage_generating_portal': "Generating link to your management portal...",
+        'manage_portal_link_message': "Click here to manage your subscription (cancel, update payment, etc.):",
+        'manage_portal_error': "Sorry, there was an error generating the link to your management portal. Please try again later or contact support.",
     }
 }
 
@@ -729,6 +741,28 @@ def update_user_stripe_customer_id(user_id: int, customer_id: str | None):
     except sqlite3.Error as e:
         logging.error(f"Error actualizando Stripe Customer ID para {user_id}: {e}")
         return False
+    finally:
+        if conn:
+            conn.close()
+
+def get_user_by_customer_id(customer_id: str) -> sqlite3.Row | None:
+    """Obtiene los datos de un usuario buscando por su Stripe Customer ID."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        c = conn.cursor()
+        # Buscar usuario por stripe_customer_id
+        # Seleccionar las columnas que podríamos necesitar (al menos user_id)
+        c.execute("SELECT user_id, plan, expiry_date FROM users WHERE stripe_customer_id = ?", (customer_id,))
+        user_data = c.fetchone()
+        if user_data:
+             logging.info(f"Usuario encontrado para Customer ID {customer_id}: User ID {user_data['user_id']}")
+        else:
+             logging.warning(f"No se encontró usuario para Customer ID {customer_id}")
+        return user_data # Devuelve Row o None
+    except sqlite3.Error as e:
+        logging.error(f"Error buscando usuario por Customer ID {customer_id}: {e}")
+        return None
     finally:
         if conn:
             conn.close()
@@ -1867,6 +1901,92 @@ async def support_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(cancel_message)
     return ConversationHandler.END
 
+# --- Fin Funciones Conversación ---
+
+# --- Fin Funciones Admin ---
+
+# --- Funciones para Gestión de Suscripción (Portal Stripe) ---
+async def create_stripe_portal_session(customer_id: str) -> str | None:
+    """Crea una sesión del Portal de Clientes de Stripe y devuelve la URL."""
+    if not stripe.api_key:
+        logging.error("Intento de crear sesión de portal de Stripe sin API key configurada.")
+        return None
+    
+    # Aquí podrías definir una URL de retorno específica si no quieres usar la
+    # configurada por defecto en el dashboard de Stripe.
+    # return_url = YOUR_DOMAIN + '/portal-return' 
+    
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=customer_id,
+            # return_url=return_url, # Descomentar si usas una URL de retorno específica
+        )
+        logging.info(f"Sesión de Stripe Portal creada para customer {customer_id}: {portal_session.id}")
+        return portal_session.url
+    except stripe.error.StripeError as e:
+        logging.error(f"Error de Stripe API creando sesión de portal para customer {customer_id}: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Error inesperado creando sesión de portal para customer {customer_id}: {e}")
+        return None
+
+async def manage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Permite al usuario gestionar su suscripción activa a través del Portal de Clientes de Stripe."""
+    user = update.effective_user
+    user_id = user.id
+    lang = user.language_code or 'en'
+    logging.info(f"manage_command: Ejecutado por user {user_id}")
+
+    # 1. Obtener datos del usuario, incluyendo stripe_customer_id
+    conn = None
+    customer_id = None
+    plan = 'FREE' # Asumir FREE por defecto
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Seleccionar la nueva columna
+        cursor.execute("SELECT plan, stripe_customer_id FROM users WHERE user_id = ?", (user_id,))
+        user_data = cursor.fetchone()
+        if user_data:
+            plan = user_data['plan']
+            customer_id = user_data['stripe_customer_id']
+            logging.info(f"manage_command: Datos encontrados - Plan: {plan}, CustomerID: {customer_id}")
+        else:
+            logging.warning(f"manage_command: Usuario {user_id} no encontrado en la BD.")
+            # Podríamos enviar error_no_user_data, pero no_subscription es más específico aquí
+            await update.message.reply_text(create_bilingual_block(['manage_no_subscription']))
+            return
+    except sqlite3.Error as e:
+        logging.error(f"manage_command: Error DB obteniendo datos para user {user_id}: {e}")
+        await update.message.reply_text(create_bilingual_block(['error_generic']).format(error=str(e)))
+        return
+    finally:
+        if conn:
+            conn.close()
+
+    # 2. Verificar si tiene suscripción activa (Plan != FREE y Customer ID existe)
+    if plan.upper() == 'FREE' or not customer_id:
+        logging.info(f"manage_command: Usuario {user_id} no tiene suscripción activa o customer ID.")
+        await update.message.reply_text(create_bilingual_block(['manage_no_subscription']))
+        return
+
+    # 3. Generar enlace al portal
+    await update.message.reply_text(create_bilingual_block(['manage_generating_portal']))
+    portal_url = await create_stripe_portal_session(customer_id)
+
+    # 4. Enviar enlace o mensaje de error
+    if portal_url:
+        portal_link_text = create_bilingual_block(['manage_portal_link_message'], separator="\n")
+        keyboard = [[InlineKeyboardButton("➡️ Gestionar Suscripción / Manage Subscription", url=portal_url)]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(portal_link_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        logging.info(f"manage_command: Enlace al portal enviado a user {user_id}")
+    else:
+        logging.error(f"manage_command: No se pudo generar URL del portal para customer {customer_id}")
+        await update.message.reply_text(create_bilingual_block(['manage_portal_error']))
+
+# --- Fin Funciones Portal ---
+
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
@@ -1919,6 +2039,7 @@ def main():
         application.add_handler(CommandHandler("faq", faq_command))
         application.add_handler(CommandHandler("plan", plan_command))
         application.add_handler(CommandHandler("upgrade", upgrade_command))
+        application.add_handler(CommandHandler("manage", manage_command)) # <-- Añadir handler /manage
         
         # Añadir PRIMERO los ConversationHandlers
         application.add_handler(explain_conv_handler)

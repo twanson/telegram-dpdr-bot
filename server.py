@@ -16,6 +16,7 @@ try:
     from bot import (
         update_user_plan,
         update_user_stripe_customer_id,
+        get_user_by_customer_id,
         STRIPE_PRICE_ID_BASIC,
         STRIPE_PRICE_ID_PREMIUM,
         SUBSCRIPTION_PLANS # Necesario si quieres loguear el nombre del plan
@@ -26,6 +27,7 @@ except ImportError as e:
     # Definir stubs para evitar errores al iniciar si falla la importación
     def update_user_plan(user_id, plan, expiry): pass
     def update_user_stripe_customer_id(user_id, customer_id): pass
+    def get_user_by_customer_id(customer_id): return None
     STRIPE_PRICE_ID_BASIC = None
     STRIPE_PRICE_ID_PREMIUM = None
     SUBSCRIPTION_PLANS = {}
@@ -213,6 +215,54 @@ async def stripe_webhook(): # <<< Hacer la función async >>>
 
         else:
             logging.warning(f"[Webhook] Condición payment_status=='paid' y IDs presentes NO CUMPLIDA. No se procesa pago.")
+
+    elif event.get('type') == 'customer.subscription.deleted':
+        logging.info("[Webhook] Evento es customer.subscription.deleted. Procesando cancelación...")
+        subscription = event['data']['object']
+        customer_id = subscription.get('customer')
+        subscription_id = subscription.get('id')
+        canceled_at_timestamp = subscription.get('canceled_at')
+        
+        # Formatear fecha de cancelación si existe
+        canceled_at_str = "N/A"
+        if canceled_at_timestamp:
+            try:
+                canceled_at_dt = datetime.fromtimestamp(canceled_at_timestamp, timezone.utc)
+                canceled_at_str = canceled_at_dt.strftime('%Y-%m-%d %H:%M:%S %Z')
+            except Exception as date_e:
+                logging.error(f"[Webhook] Error formateando fecha canceled_at: {date_e}")
+        
+        logging.info(f"[Webhook] Cancelación recibida para customer {customer_id}, sub {subscription_id}, cancelada en {canceled_at_str}")
+
+        if customer_id and callable(get_user_by_customer_id) and callable(update_user_plan):
+            logging.info(f"[Webhook] Buscando usuario por Customer ID: {customer_id}")
+            user_info = get_user_by_customer_id(customer_id)
+            
+            if user_info:
+                user_id = user_info['user_id']
+                logging.info(f"[Webhook] Usuario {user_id} encontrado. Actualizando plan a FREE.")
+                try:
+                    success = update_user_plan(user_id, 'FREE', None) # Volver a FREE, sin expiración
+                    if success:
+                        logging.info(f"[Webhook] ✅ Plan actualizado a FREE para user {user_id} debido a cancelación.")
+                        # <<< ENVIAR MENSAJE DE CANCELACIÓN (Opcional) >>>
+                        cancellation_text = (
+                            f"Tu suscripción ha sido cancelada correctamente. "
+                            f"Has vuelto al plan Gratuito."
+                            # f"Puedes volver a suscribirte usando /upgrade en cualquier momento."
+                        )
+                        # Necesitaríamos saber el idioma del usuario... podríamos añadirlo a la BD o 
+                        # simplemente enviar en un idioma por defecto o no enviar.
+                        # await send_telegram_message(user_id, cancellation_text) 
+                        # <<< FIN MENSAJE >>>
+                    else:
+                        logging.error(f"[Webhook] ❌ update_user_plan (a FREE) falló para user {user_id}.")
+                except Exception as e_plan:
+                    logging.error(f"[Webhook] ❌ Excepción al llamar a update_user_plan (a FREE): {e_plan}")
+            else:
+                logging.warning(f"[Webhook] No se encontró usuario en la BD para customer {customer_id} que canceló suscripción {subscription_id}. No se puede actualizar plan.")
+        else:
+             logging.error("[Webhook] No se pudo procesar cancelación: falta customer_id o funciones auxiliares.")
 
     else:
         logging.info(f"[Webhook] Evento de tipo {event.get('type')} no manejado.")

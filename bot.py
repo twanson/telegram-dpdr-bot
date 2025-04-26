@@ -1927,16 +1927,17 @@ async def support_details_received(update: Update, context: ContextTypes.DEFAULT
     notification_message = (
         f"📣 **Nueva Consulta de Soporte** 📣\n\n"
         f"**De:** Usuario ID `{user.id}` (Username: @{user.username or 'N/A'})\n"
-        f"**Consulta:**\n{support_query}"
+        f"**Consulta:**\\n{support_query}"
     )
 
-    # Enviar notificación a todos los admins
-    for admin_id in ADMIN_IDS:
-        try:
-            await context.bot.send_message(chat_id=admin_id, text=notification_message, parse_mode=ParseMode.MARKDOWN)
-            logging.info(f"Notificación de soporte enviada al admin {admin_id}")
-        except Exception as e:
-            logging.error(f"Error enviando notificación de soporte al admin {admin_id}: {e}")
+    # --- Enviar notificación SOLO al admin principal (ID fijo) ---
+    TARGET_ADMIN_ID = 23684095
+    try:
+        await context.bot.send_message(chat_id=TARGET_ADMIN_ID, text=notification_message, parse_mode=ParseMode.MARKDOWN)
+        logging.info(f"Notificación de soporte enviada al admin principal {TARGET_ADMIN_ID}")
+    except Exception as e:
+        logging.error(f"Error enviando notificación de soporte al admin principal {TARGET_ADMIN_ID}: {e}")
+    # --- Fin envío a admin principal ---
 
     # Confirmar al usuario
     confirmation_text = get_text('support_confirmation', lang, default="Gracias. Tu consulta ha sido enviada al equipo de soporte. Te contactarán si es necesario.")

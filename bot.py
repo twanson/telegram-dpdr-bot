@@ -142,7 +142,7 @@ LOCALES = {
         'upgrade_payment_link_message': "Haz clic aquí para completar tu suscripción:",
         'error_price_id_not_found': "Error: No se encontró el ID de precio para ese plan.",
         'error_stripe_session': "Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.",
-        'error_processing_selection': "Error procesando la selección. Inténtalo de nuevo.", # <-- Añadido
+        'error_processing_selection': "Error procesando la selección. Inténtalo de nuevo.",
         # Explain Conversation
         'explain_entry_prompt': "Claro, puedo ayudarte con eso. ¿Sobre qué tema específico (DPDR, ansiedad, un síntoma concreto, etc.) te gustaría que preparara una explicación sencilla para compartir?",
         'explain_cancel_instruction': "(Puedes escribir /cancel para detener esto en cualquier momento)",
@@ -161,6 +161,14 @@ LOCALES = {
         'support_cancel_confirmation': "De acuerdo, se canceló la solicitud de soporte.",
         'faq_removing_keyboard': "Cargando opciones...",
         'error_request_in_progress': "Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.", # <-- Añadido
+        'error_stripe_specific': "Error de pago: {error}", # <-- Añadido
+        # Upgrade Command Text
+        'upgrade_title': "Selecciona el plan al que quieres actualizar:",
+        'upgrade_basic_desc': "💎 **Plan Basic ({price}€/mes):**\n- {limit} mensajes/día",
+        'upgrade_premium_desc': "👑 **Plan Premium ({price}€/mes):**\n- {limit} mensajes/día",
+        'upgrade_footer': "*Serás redirigido a Stripe para completar el pago seguro.*",
+        'error_stripe_ids_missing': "Lo siento, la opción de mejora de plan no está configurada correctamente.",
+        # Explain Conversation
     },
     'en': {
         # FAQ Buttons
@@ -248,6 +256,8 @@ LOCALES = {
         'explain_response_header': "Aquí tienes una propuesta de explicación que puedes compartir o adaptar:",
         'explain_response_footer': "Espero que sea útil. ¿Puedo ayudarte con algo más?",
         'explain_cancel_confirmation': "De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras.",
+        'error_stripe_session': "Sorry, there was an error generating the payment link. Please try again later.",
+        'error_stripe_specific': "Payment Error: {error}", # <-- Added
     }
 }
 
@@ -1079,7 +1089,17 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         logging.warning(f"upgrade_button_handler: No se pudo editar mensaje de progreso: {edit_e}")
 
     try:
+        # --- Log URLs antes de llamar a Stripe --- 
+        constructed_success_url = YOUR_DOMAIN + '/success?session_id={CHECKOUT_SESSION_ID}'
+        constructed_cancel_url = YOUR_DOMAIN + '/cancel'
+        logging.info(f"upgrade_button_handler: Construyendo URLs para Stripe: success='{constructed_success_url}', cancel='{constructed_cancel_url}'")
+        # -------------------------------------------
         logging.info(f"upgrade_button_handler: Intentando crear sesión de Stripe con Price ID: {price_id}")
+        
+        # --- Configurar timeout para Stripe --- 
+        stripe.timeout = 30 # 30 segundos de timeout
+        # --------------------------------------
+        
         checkout_session = stripe.checkout.Session.create(
             line_items=[
                 {
@@ -1088,90 +1108,113 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
                 },
             ],
             mode='subscription',
-            success_url=YOUR_DOMAIN + '/success?session_id={CHECKOUT_SESSION_ID}',
-            cancel_url=YOUR_DOMAIN + '/cancel',
+            success_url=constructed_success_url, # Usar variable
+            cancel_url=constructed_cancel_url,   # Usar variable
             customer_email=None, 
             metadata={
                 'telegram_user_id': str(user_id) 
             }
+            # request_options={ 'timeout': 30 } # Otra forma de pasar timeout específico
         )
-        logging.info(f"upgrade_button_handler: Sesión de Stripe creada: {checkout_session.id}")
+        # --- Log URL de sesión devuelta --- 
+        session_url = checkout_session.url
+        logging.info(f"upgrade_button_handler: Sesión de Stripe creada: {checkout_session.id}. URL: {session_url}")
+        # ----------------------------------
 
         payment_link_text = get_text('upgrade_payment_link_message', lang, default="Haz clic aquí para completar tu suscripción:")
-        await query.message.reply_text(
-            f"{payment_link_text} <a href=\"{checkout_session.url}\">Pagar Ahora</a>", 
-            parse_mode=ParseMode.HTML, 
-            disable_web_page_preview=True
-        )
-        logging.info(f"upgrade_button_handler: Enlace de pago enviado a user {user_id}")
+        # Asegurarse de que session_url no es None antes de usarlo
+        if session_url:
+            await query.message.reply_text(
+                f"{payment_link_text} <a href=\"{session_url}\">Pagar Ahora</a>", 
+                parse_mode=ParseMode.HTML, 
+                disable_web_page_preview=True
+            )
+            logging.info(f"upgrade_button_handler: Enlace de pago enviado a user {user_id}")
+        else:
+             logging.error(f"upgrade_button_handler: checkout_session.url devuelta por Stripe es None para session {checkout_session.id}")
+             await query.message.reply_text(get_text('error_stripe_session', lang)) # Reenviar mensaje de error
 
-    except Exception as e:
-        logging.error(f"upgrade_button_handler: Error al crear la sesión de Stripe para el usuario {user_id}: {e}", exc_info=True)
-        stripe_error_text = get_text('error_stripe_session', lang, default="Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.")
-        # Intentar enviar como respuesta al mensaje original si la edición falló
+    # --- Captura de errores más específica --- 
+    except stripe.error.StripeError as e:
+        logging.error(f"upgrade_button_handler: Error de Stripe API para user {user_id}: {e}", exc_info=True)
+        # Intentar obtener más detalles del error
+        err_body = e.json_body.get('error', {})
+        user_message = err_body.get('message', "Ocurrió un error con el pago.")
+        logging.error(f"StripeError details: status={e.http_status}, type={err_body.get('type')}, code={err_body.get('code')}, param={err_body.get('param')}, message={user_message}")
+        # Usar un mensaje más específico si es posible, o el genérico de Stripe
+        stripe_error_text = get_text('error_stripe_specific', lang, default=f"Error de pago: {user_message}") 
         try:
              await query.message.reply_text(stripe_error_text)
         except Exception as reply_e:
-             logging.error(f"upgrade_button_handler: No se pudo ni editar ni responder con error de Stripe: {reply_e}")
+             logging.error(f"upgrade_button_handler: No se pudo enviar mensaje de error específico de Stripe: {reply_e}")
+    # -----------------------------------------
+    except Exception as e:
+        # Captura genérica para otros errores inesperados
+        logging.error(f"upgrade_button_handler: Error inesperado para el usuario {user_id}: {e}", exc_info=True)
+        stripe_error_text = get_text('error_stripe_session', lang, default="Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.")
+        try:
+             await query.message.reply_text(stripe_error_text)
+        except Exception as reply_e:
+             logging.error(f"upgrade_button_handler: No se pudo enviar mensaje de error genérico de Stripe: {reply_e}")
 
 async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
     lang = user.language_code or 'en'
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT plan, daily_messages, expiry_date FROM users WHERE user_id = ?", (user_id,))
-    user_data = cursor.fetchone()
-    conn.close()
+    # Usar get_user para obtener datos y manejar reset diario
+    user_data = get_user(user_id)
 
     if not user_data:
         await update.message.reply_text(get_text('error_no_user_data', lang))
         return
 
-    current_plan, daily_messages, expiry_date_str = user_data
+    # Acceder a los datos usando los nombres de columna correctos de la BD
+    current_plan = user_data['plan']
+    daily_messages = user_data['daily_messages']
+    expiry_date_str = user_data['expiry_date']
+    
     plan_name = current_plan.capitalize()
-    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0) # Asegurarse de usar MAYUS y manejar clave faltante
+    plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
     expiry_date_formatted = "N/A"
-    if expiry_date_str and current_plan.upper() != 'FREE': # Comparar con MAYUS
+    if expiry_date_str and current_plan.upper() != 'FREE':
         try:
-            # Intentar parsear con el formato ISO 8601 que incluye zona horaria
             expiry_date = datetime.fromisoformat(expiry_date_str.replace('Z', '+00:00'))
-            expiry_date_formatted = expiry_date.strftime('%d-%m-%Y') # Formato DD-MM-YYYY
+            expiry_date_formatted = expiry_date.strftime('%d-%m-%Y')
         except ValueError:
-            # Si falla, intentar con el formato antiguo DD-MM-YYYY (si aplica)
             try:
                 expiry_date = datetime.strptime(expiry_date_str, '%d-%m-%Y')
                 expiry_date_formatted = expiry_date.strftime('%d-%m-%Y')
             except ValueError:
                 logging.error(f"Error al parsear la fecha de expiración '{expiry_date_str}' para el usuario {user_id}")
-                # Usar una clave de locale específica para el error de fecha si existe, o una genérica
                 expiry_date_formatted = get_text('plan_expiry_error', lang, default="Fecha inválida")
 
     plan_info_title = get_text('plan_title', lang)
     plan_info_name = f"**{plan_name}**"
+    # Pasar daily_messages y plan_limit a la plantilla si es necesario
     plan_info_messages = f"{get_text('plan_messages_today', lang)} {daily_messages}/{plan_limit}"
     
     plan_info_expires = ""
-    if current_plan.upper() != 'FREE': # Comparar con MAYUS
+    if current_plan.upper() != 'FREE':
+        # Pasar expiry_date_formatted como argumento 'expiry_date'
         plan_info_expires = get_text('plan_expires', lang).format(expiry_date=expiry_date_formatted)
 
     available_plans_title = get_text('plan_available_title', lang)
     
-    # Obtener precios formateados de SUBSCRIPTION_PLANS
+    # Obtener precios y límites
     free_limit = SUBSCRIPTION_PLANS.get('FREE', {}).get('daily_messages', 0)
     basic_limit = SUBSCRIPTION_PLANS.get('BASIC', {}).get('daily_messages', 0)
     premium_limit = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('daily_messages', 0)
     basic_price = SUBSCRIPTION_PLANS.get('BASIC', {}).get('price', 'N/A')
     premium_price = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('price', 'N/A')
 
-    # Pasar los argumentos correctos a .format()
+    # Asegurarse de pasar los argumentos correctos
     plan_free_desc = get_text('plan_free_desc', lang).format(limit=free_limit)
     plan_basic_desc = get_text('plan_basic_desc', lang).format(limit=basic_limit, price=basic_price)
     plan_premium_desc = get_text('plan_premium_desc', lang).format(limit=premium_limit, price=premium_price)
 
-    if current_plan.upper() == 'FREE': # Comparar con MAYUS
+    if current_plan.upper() == 'FREE':
         upgrade_cta = get_text('plan_upgrade_cta_free', lang)
     else:
         upgrade_cta = get_text('plan_upgrade_cta_paid', lang)

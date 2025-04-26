@@ -5,7 +5,8 @@ import time
 import sys
 import sqlite3 # <-- Añadir importación
 import re # <--- Añadir import
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.constants import ParseMode # <-- Importación corregida
 from telegram.ext import (
     ApplicationBuilder, 
     CommandHandler, 

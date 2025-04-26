@@ -263,6 +263,7 @@ LOCALES = {
         'error_processing_selection': "Error processing selection. Please try again.",
         # Upgrade Command Text
         'upgrade_title': "Select the plan you want to upgrade to:",
+        'upgrade_generating_link': "Generating secure payment link...", # <-- Added missing key
         'upgrade_basic_desc': "💎 **Basic Plan (€{basic_price}/month):**\n- {basic_limit} messages/day", # <-- Placeholder changed
         'upgrade_premium_desc': "👑 **Premium Plan (€{premium_price}/month):**\n- {premium_limit} messages/day", # <-- Placeholder changed
         'upgrade_footer': "*You will be redirected to Stripe to complete the secure payment.*",
@@ -1222,13 +1223,16 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
     logging.info(f"upgrade_button_handler: Extracted Price ID from callback: '{price_id}' for plan {plan_type}")
 
     progress_text = get_text('upgrade_generating_link', lang, default="Generando enlace de pago seguro...")
+    logging.info("upgrade_button_handler: Intentando editar mensaje a estado 'Generando...'") # <-- Log ANTES
     try:
         await query.edit_message_text(progress_text)
+        logging.info("upgrade_button_handler: Mensaje editado OK.") # <-- Log DESPUÉS (éxito)
     except Exception as edit_e:
-        logging.warning(f"upgrade_button_handler: No se pudo editar mensaje de progreso: {edit_e}")
+        logging.error(f"upgrade_button_handler: ERROR al editar mensaje de progreso: {edit_e}", exc_info=True) # <-- Log DESPUÉS (error)
+        # Decidimos si continuar o no. Por ahora, continuamos.
 
     try:
-        # --- Log URLs antes de llamar a Stripe --- 
+        # --- Construir URLs para Stripe --- 
         constructed_success_url = YOUR_DOMAIN + '/stripe-success?session_id={CHECKOUT_SESSION_ID}' # <-- Corregido
         constructed_cancel_url = YOUR_DOMAIN + '/stripe-cancel' # <-- Corregido
         logging.info(f"upgrade_button_handler: Construyendo URLs para Stripe: success='{constructed_success_url}', cancel='{constructed_cancel_url}'")

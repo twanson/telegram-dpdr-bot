@@ -1246,6 +1246,16 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         stripe.timeout = 30 # 30 segundos de timeout
         # --------------------------------------
         
+        # <<< Log Detallado Antes de Llamar a Stripe >>>
+        logging.info(f"upgrade_button_handler: Llamando a stripe.checkout.Session.create con:")
+        logging.info(f"  line_items: [{{'price': '{price_id}', 'quantity': 1}}] ")
+        logging.info(f"  mode: 'subscription'")
+        logging.info(f"  success_url: '{constructed_success_url}'")
+        logging.info(f"  cancel_url: '{constructed_cancel_url}'")
+        logging.info(f"  metadata: {{'telegram_user_id': '{str(user_id)}'}}")
+        logging.info(f"  client_reference_id: '{str(user_id)}'") # <-- Log añadido
+        # <<< Fin Log Detallado >>>
+
         checkout_session = stripe.checkout.Session.create(
             line_items=[
                 {
@@ -1256,9 +1266,10 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
             mode='subscription',
             success_url=constructed_success_url, # Usar variable corregida
             cancel_url=constructed_cancel_url,   # Usar variable corregida
-            customer_email=None, 
+            # customer_email=None, # Comentado como antes
+            client_reference_id=str(user_id), # <-- AÑADIDO PARÁMETRO FALTANTE
             metadata={
-                'telegram_user_id': str(user_id) 
+                'telegram_user_id': str(user_id)
             }
             # request_options={ 'timeout': 30 } # Otra forma de pasar timeout específico
         )

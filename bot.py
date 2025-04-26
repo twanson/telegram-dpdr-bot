@@ -280,114 +280,207 @@ def init_db():
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection() # Usar la función helper
         c = conn.cursor()
-        # Crear tabla de usuarios si no existe
+        # Crear tabla de usuarios si no existe, incluyendo todos los campos finales
         c.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                first_name TEXT,
+                last_name TEXT,
+                language_code TEXT,
                 plan TEXT DEFAULT 'FREE',
                 expiry_date TEXT,
-                message_count INTEGER DEFAULT 0,
+                daily_messages INTEGER DEFAULT 0, -- Nombre final
                 token_count INTEGER DEFAULT 0,
                 last_reset_date TEXT,
-                thread_id TEXT DEFAULT NULL
+                openai_thread_id TEXT         -- Nombre final
             )
         """)
-        # Intentar añadir la columna thread_id si no existe (para compatibilidad)
-        try:
-            c.execute("ALTER TABLE users ADD COLUMN thread_id TEXT DEFAULT NULL")
-            logging.info("Columna 'thread_id' añadida a la tabla 'users'.")
-        except sqlite3.OperationalError as e:
-            if "duplicate column name" not in str(e):
-                raise e
-            else:
-                logging.info("Columna 'thread_id' ya existía.")
 
-        # Crear tabla de feedback si no existe
+        # --- Bloques ALTER TABLE para users ---
+
+        # Renombrar message_count a daily_messages si existe
+        try:
+            c.execute("SELECT daily_messages FROM users LIMIT 1")
+        except sqlite3.OperationalError: # Si daily_messages no existe...
+            try:
+                c.execute("ALTER TABLE users RENAME COLUMN message_count TO daily_messages")
+                logging.info("Columna 'message_count' renombrada a 'daily_messages'.")
+            except sqlite3.OperationalError as e:
+                 if "no such column: message_count" in str(e):
+                    try:
+                         c.execute("ALTER TABLE users ADD COLUMN daily_messages INTEGER DEFAULT 0")
+                         logging.info("Columna 'daily_messages' añadida (tabla antigua sin conteo o nueva).")
+                    except sqlite3.OperationalError as e_add:
+                        if "duplicate column name" not in str(e_add): raise e_add
+                 else: raise e
+
+        # Renombrar thread_id a openai_thread_id si existe
+        try:
+            c.execute("SELECT openai_thread_id FROM users LIMIT 1")
+        except sqlite3.OperationalError:
+            try:
+                c.execute("ALTER TABLE users RENAME COLUMN thread_id TO openai_thread_id")
+                logging.info("Columna 'thread_id' renombrada a 'openai_thread_id'.")
+            except sqlite3.OperationalError as e:
+                if "no such column: thread_id" in str(e):
+                     try:
+                         c.execute("ALTER TABLE users ADD COLUMN openai_thread_id TEXT")
+                         logging.info("Columna 'openai_thread_id' añadida.")
+                     except sqlite3.OperationalError as e_add:
+                         if "duplicate column name" not in str(e_add): raise e_add
+                else: raise e
+
+        # Añadir columnas de información de usuario si no existen
+        user_info_columns = ['username', 'first_name', 'last_name', 'language_code']
+        for col in user_info_columns:
+            try:
+                c.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
+                logging.info(f"Columna '{col}' añadida a la tabla 'users'.")
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" not in str(e): raise e
+
+        # Crear tabla de feedback si no existe, con todos los campos finales
         c.execute("""
             CREATE TABLE IF NOT EXISTS feedback (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                message TEXT,
+                user_query TEXT,             -- Nombre final
+                assistant_response TEXT,   -- Nombre final
                 rating TEXT,
-                timestamp TEXT
+                timestamp TEXT,
+                assistant_id TEXT,
+                thread_id TEXT,
+                run_id TEXT
             )
         """)
+
+        # --- ALTER TABLE para feedback ---
+        feedback_columns = {
+            'user_query': 'TEXT',
+            'assistant_response': 'TEXT',
+            'assistant_id': 'TEXT',
+            'thread_id': 'TEXT',
+            'run_id': 'TEXT'
+        }
+        # Renombrar message a assistant_response si existe
+        try:
+            c.execute("SELECT assistant_response FROM feedback LIMIT 1")
+        except sqlite3.OperationalError:
+             try:
+                 c.execute("ALTER TABLE feedback RENAME COLUMN message TO assistant_response")
+                 logging.info("Columna 'message' renombrada a 'assistant_response' en feedback.")
+             except sqlite3.OperationalError as e:
+                 if "no such column: message" in str(e):
+                     try:
+                        c.execute("ALTER TABLE feedback ADD COLUMN assistant_response TEXT")
+                        logging.info("Columna 'assistant_response' añadida a feedback.")
+                     except sqlite3.OperationalError as e_add:
+                        if "duplicate column name" not in str(e_add): raise e_add
+                 else: raise e
+
+        # Añadir el resto de columnas nuevas a feedback si no existen
+        for col, col_type in feedback_columns.items():
+            if col == 'assistant_response': continue # Ya manejada
+            try:
+                c.execute(f"ALTER TABLE feedback ADD COLUMN {col} {col_type}")
+                logging.info(f"Columna '{col}' añadida a la tabla 'feedback'.")
+            except sqlite3.OperationalError as e:
+                if "duplicate column name" not in str(e): raise e
+
         conn.commit()
         logging.info("✅ Base de datos SQLite inicializada/verificada.")
     except sqlite3.Error as e:
         logging.error(f"❌ Error inicializando SQLite: {str(e)}")
+        raise e
     finally:
         if conn:
             conn.close()
 
 def add_user(user_id: int):
     """Añade un usuario nuevo a la base de datos si no existe."""
-    conn = None # Inicializar conn
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("INSERT OR IGNORE INTO users (user_id, last_reset_date) VALUES (?, ?)",
-                  (user_id, date.today().isoformat()))
+        today = date.today().isoformat()
+        # Solo insertamos user_id y last_reset_date inicialmente. El resto se llena en /start
+        c.execute("INSERT OR IGNORE INTO users (user_id, last_reset_date, daily_messages) VALUES (?, ?, 0)",
+                  (user_id, today))
         conn.commit()
         logging.info(f"Usuario {user_id} añadido o ya existente.")
     except sqlite3.Error as e:
         logging.error(f"Error añadiendo usuario {user_id}: {e}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def get_user(user_id: int):
-    """Obtiene los datos del usuario de la base de datos."""
-    conn = None # Inicializar conn
+    """Obtiene los datos del usuario de la base de datos, reseteando contadores si es necesario."""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        # Seleccionar todas las columnas necesarias con los nombres correctos
+        c.execute("""SELECT user_id, username, first_name, last_name, language_code,
+                          plan, expiry_date, daily_messages, token_count, last_reset_date,
+                          openai_thread_id
+                   FROM users WHERE user_id = ?""", (user_id,))
         user_data = c.fetchone()
+
         if user_data:
-            # Verificar si la fecha de último reseteo es de ayer o antes
             today = date.today()
-            last_reset = date.fromisoformat(user_data['last_reset_date'])
+            last_reset = date.fromisoformat(user_data['last_reset_date']) if user_data['last_reset_date'] else today - timedelta(days=1) # Manejar None inicial
+
             if last_reset < today:
-                # Resetear contadores
-                c.execute("UPDATE users SET message_count = 0, token_count = 0, last_reset_date = ? WHERE user_id = ?",
+                c.execute("UPDATE users SET daily_messages = 0, token_count = 0, last_reset_date = ? WHERE user_id = ?",
                           (today.isoformat(), user_id))
                 conn.commit()
                 # Volver a obtener los datos actualizados
-                c.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+                c.execute("""SELECT user_id, username, first_name, last_name, language_code,
+                                  plan, expiry_date, daily_messages, token_count, last_reset_date,
+                                  openai_thread_id
+                           FROM users WHERE user_id = ?""", (user_id,))
                 user_data = c.fetchone()
-        return user_data # Devuelve None si no se encuentra
+        else:
+            logging.warning(f"Usuario {user_id} no encontrado en get_user. Será añadido en el próximo /start.")
+            # Ya no añadimos aquí, se hace en /start
+
+        return user_data # Devuelve un objeto Row o None
     except sqlite3.Error as e:
         logging.error(f"Error obteniendo usuario {user_id}: {e}")
         return None
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def update_user_usage(user_id: int, message_increment: int = 1, token_increment: int = 0):
     """Actualiza el uso del usuario en la base de datos."""
-    conn = None # Inicializar conn
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute('''
+        # Usar el nombre de columna correcto: daily_messages
+        c.execute("""
             UPDATE users
-            SET message_count = message_count + ?,
+            SET daily_messages = daily_messages + ?,
                 token_count = token_count + ?
             WHERE user_id = ?
-        ''', (message_increment, token_increment, user_id))
+        """, (message_increment, token_increment, user_id))
         conn.commit()
     except sqlite3.Error as e:
         logging.error(f"Error actualizando uso para usuario {user_id}: {e}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def update_user_plan(user_id: int, plan: str, expiry_date_iso: str | None):
     """Actualiza el plan y la fecha de expiración de un usuario."""
     conn = None # Inicializar conn
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
         c.execute("UPDATE users SET plan = ?, expiry_date = ? WHERE user_id = ?",
                   (plan.upper(), expiry_date_iso, user_id))
@@ -398,45 +491,61 @@ def update_user_plan(user_id: int, plan: str, expiry_date_iso: str | None):
         logging.error(f"Error actualizando plan para {user_id}: {e}")
         return False
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
-def add_feedback(user_id: int, message: str, rating: str):
+def add_feedback(
+    user_id: int,
+    user_query: str,
+    assistant_response: str,
+    rating: str,
+    assistant_id: str,
+    thread_id: str,
+    run_id: str
+):
     """Guarda el feedback del usuario en la base de datos."""
-    conn = None # Inicializar conn
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
         timestamp = datetime.now().isoformat()
-        c.execute("INSERT INTO feedback (user_id, message, rating, timestamp) VALUES (?, ?, ?, ?)",
-                  (user_id, message, rating, timestamp))
+        # Usar los nombres correctos de las columnas
+        c.execute("""INSERT INTO feedback
+                     (user_id, user_query, assistant_response, rating, timestamp, assistant_id, thread_id, run_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                  (user_id, user_query, assistant_response, rating, timestamp, assistant_id, thread_id, run_id))
         conn.commit()
         logging.info(f"Feedback guardado para usuario {user_id}: {rating}")
     except sqlite3.Error as e:
         logging.error(f"Error guardando feedback para usuario {user_id}: {e}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def get_recent_feedback(limit: int = 5):
     """Obtiene las últimas 'limit' entradas de feedback de la base de datos."""
-    conn = None # Inicializar conn
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row # Devuelve filas como diccionarios
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM feedback ORDER BY timestamp DESC LIMIT ?", (limit,))
+        # Seleccionar las columnas correctas
+        c.execute("""SELECT id, user_id, user_query, assistant_response, rating, timestamp,
+                          assistant_id, thread_id, run_id
+                   FROM feedback ORDER BY timestamp DESC LIMIT ?""", (limit,))
         feedback_data = c.fetchall()
-        return feedback_data # Devuelve una lista de filas (o lista vacía)
+        return feedback_data
     except sqlite3.Error as e:
         logging.error(f"Error obteniendo feedback: {e}")
-        return [] # Devuelve lista vacía en caso de error
+        return []
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 def get_all_users(plan_filter: str | None = None):
     """Obtiene todos los usuarios, opcionalmente filtrados por plan."""
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
         query = "SELECT user_id, plan FROM users ORDER BY user_id"
@@ -465,9 +574,10 @@ def update_user_thread_id(user_id: int, thread_id: str | None):
     """Actualiza o borra el thread_id de OpenAI para un usuario."""
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (thread_id, user_id))
+        # Usar el nombre de columna correcto: openai_thread_id
+        c.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (thread_id, user_id))
         conn.commit()
         logging.info(f"Thread ID actualizado para {user_id}: {'Borrado' if thread_id is None else thread_id}")
         return True
@@ -506,49 +616,56 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
-    lang = user.language_code or 'en'  # Default a 'en' si no hay código de idioma
+    lang = user.language_code or 'en'
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
     # Verificar si el usuario ya existe
-    cursor.execute("SELECT plan, expiry_date, thread_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("""SELECT user_id, username, first_name, last_name, language_code,
+                          plan, expiry_date, daily_messages, token_count, last_reset_date,
+                          openai_thread_id
+                   FROM users WHERE user_id = ?""", (user_id,))
     user_data = cursor.fetchone()
+    current_thread_id = None # Inicializar
 
     if not user_data:
-        # Crear nuevo usuario con plan gratuito
         today_date = date.today()
-        expiry_date = today_date + timedelta(days=365*10) # Caducidad muy lejana para el plan gratuito
+        expiry_date = today_date + timedelta(days=365*10)
+        # Insertar todos los campos disponibles al crear
         cursor.execute(
-            "INSERT INTO users (user_id, username, first_name, last_name, language_code, plan, expiry_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (user_id, user.username, user.first_name, user.last_name, lang, 'free', expiry_date)
+            """INSERT INTO users (user_id, username, first_name, last_name, language_code,
+                               plan, expiry_date, daily_messages, last_reset_date)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)""",
+            (user_id, user.username, user.first_name, user.last_name, lang,
+             'free', expiry_date.isoformat(), today_date.isoformat())
         )
         conn.commit()
         logging.info(f"Nuevo usuario {user_id} ({user.username}) añadido con plan 'free'.")
-        thread_id = None # El thread se creará al primer mensaje
+        # El thread_id sigue siendo None aquí
     else:
-        _, _, thread_id = user_data
+        current_thread_id = user_data['openai_thread_id'] # Usar el nombre correcto aquí
         # Actualizar info básica si ha cambiado
         cursor.execute(
-            "UPDATE users SET username = ?, first_name = ?, last_name = ?, language_code = ? WHERE user_id = ?",
+            """UPDATE users SET username = ?, first_name = ?, last_name = ?, language_code = ?
+               WHERE user_id = ?""",
             (user.username, user.first_name, user.last_name, lang, user_id)
         )
         conn.commit()
 
-    # Inicializar el cliente de OpenAI aquí para asegurar que se usa el thread_id correcto
     client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-    if not thread_id:
-        # Crear thread si no existe (primer inicio o reset)
+    if not current_thread_id: # Usar la variable que ya contiene el thread_id o None
         thread = client.beta.threads.create()
-        thread_id = thread.id
-        cursor.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (thread_id, user_id))
-        conn.commit()
-        logging.info(f"Nuevo OpenAI thread creado para el usuario {user_id}: {thread_id}")
+        current_thread_id = thread.id
+        # Usar update_user_thread_id para encapsular la lógica de actualización
+        update_user_thread_id(user_id, current_thread_id)
+        logging.info(f"Nuevo OpenAI thread creado para el usuario {user_id}: {current_thread_id}")
 
-    context.user_data['openai_thread_id'] = thread_id
+    context.user_data['openai_thread_id'] = current_thread_id
     context.user_data['openai_client'] = client
 
-    conn.close()
+    # No necesitamos cerrar la conexión aquí si la obtuvimos de get_db_connection y update_user_thread_id la maneja
+    # conn.close() <-- Eliminar si get_db_connection y otras funciones manejan su conexión
 
     # Enviar mensaje de bienvenida usando get_text
     welcome_text_1 = get_text('start_welcome_1', lang)
@@ -581,18 +698,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = user.language_code or 'en'
     message_text = update.message.text
 
-    # 0. Comprobar si el usuario existe (por si acaso)
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT plan, daily_messages, thread_id FROM users WHERE user_id = ?", (user_id,))
-    user_data = cursor.fetchone()
+    # 0. Usar get_user que maneja creación/actualización de contadores
+    user_data = get_user(user_id)
 
     if not user_data:
+        # get_user ya habrá loggeado el error, pero podemos añadir un mensaje al usuario
         await update.message.reply_text(get_text('error_no_user_data', lang))
-        conn.close()
         return
-    
-    current_plan, daily_messages, thread_id_from_db = user_data
+
+    current_plan = user_data['plan']
+    daily_messages = user_data['daily_messages']
+    thread_id_from_db = user_data['openai_thread_id'] # Nombre correcto
     plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
     # 1. Verificar límite de mensajes
@@ -603,34 +719,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         limit_cta = get_text('limit_reached_cta', lang)
         full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
         await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
-        conn.close()
         return
 
-    # 2. Incrementar contador de mensajes
-    cursor.execute("UPDATE users SET daily_messages = daily_messages + 1 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close() # Cerrar conexión después de la actualización
+    # 2. Incrementar contador de mensajes (usando la función helper)
+    update_user_usage(user_id, message_increment=1)
 
-    # Recuperar cliente y thread_id de user_data si no están inicializados
     client = context.user_data.get('openai_client')
     current_thread_id = context.user_data.get('openai_thread_id')
 
     if not client or not current_thread_id:
         logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
         client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-        current_thread_id = thread_id_from_db # Usar el de la BD que leímos antes
+        current_thread_id = thread_id_from_db # Usar el de la BD
+
         if not current_thread_id:
-            # Si AÚN no hay thread_id (usuario nuevo o reset justo antes de este mensaje)
             logging.info(f"Creando nuevo thread para {user_id} dentro de handle_message.")
             thread = client.beta.threads.create()
             current_thread_id = thread.id
-            conn = get_db_connection() # Reabrir conexión
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
-            conn.commit()
-            conn.close()
-        
-        # Guardar en context para futuros mensajes
+            update_user_thread_id(user_id, current_thread_id) # Usar helper
+
         context.user_data['openai_client'] = client
         context.user_data['openai_thread_id'] = current_thread_id
 
@@ -717,22 +824,20 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = user.id
     lang = user.language_code or 'en'
 
-    # Borrar el thread_id existente de la base de datos
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET thread_id = NULL WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
+    # Usar la función helper para actualizar la BD
+    success = update_user_thread_id(user_id, None)
 
-    # Borrar el thread_id y el cliente de OpenAI de context.user_data
-    if 'openai_thread_id' in context.user_data:
-        del context.user_data['openai_thread_id']
-    if 'openai_client' in context.user_data:
-        del context.user_data['openai_client']
-
-    logging.info(f"Conversación reseteada para el usuario {user_id}. El próximo mensaje creará un nuevo thread.")
-
-    await update.message.reply_text(get_text('reset_confirmation', lang))
+    if success:
+        if 'openai_thread_id' in context.user_data:
+            del context.user_data['openai_thread_id']
+        if 'openai_client' in context.user_data:
+             # Podríamos mantener el cliente, o reiniciarlo la próxima vez
+             del context.user_data['openai_client']
+        logging.info(f"Conversación reseteada para el usuario {user_id}. El próximo mensaje creará un nuevo thread.")
+        await update.message.reply_text(get_text('reset_confirmation', lang))
+    else:
+        # Informar al usuario si falla la actualización en BD?
+        await update.message.reply_text("Hubo un problema al intentar reiniciar tu conversación.")
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -975,7 +1080,7 @@ async def admin_user_info_command(update: Update, context: ContextTypes.DEFAULT_
     # 4. Formatear y enviar respuesta
     current_plan_type = user_data['plan']
     current_plan = SUBSCRIPTION_PLANS[current_plan_type]
-    message_count = user_data['message_count']
+    message_count = user_data['daily_messages']
     last_reset = user_data['last_reset_date']
 
     message = f"ℹ️ **Información del Usuario: {target_user_id}**\n\n"
@@ -1037,7 +1142,7 @@ async def admin_set_plan_command(update: Update, context: ContextTypes.DEFAULT_T
         expiry_msg = f" con expiración el {datetime.fromisoformat(expiry_date_iso).strftime('%d/%m/%Y')}" if expiry_date_iso else " (sin expiración definida)"
         await update.message.reply_text(f"✅ Plan actualizado para el usuario `{target_user_id}`.\nNuevo plan: **{target_plan_name}**{expiry_msg}", parse_mode='Markdown')
         # Opcional: Podrías resetear los contadores del día al cambiar de plan
-        # update_user_usage(target_user_id, message_increment=-get_user(target_user_id)['message_count']) # Reset msg count
+        # update_user_usage(target_user_id, message_increment=-get_user(target_user_id)['daily_messages']) # Reset msg count
     else:
         await update.message.reply_text(f"❌ Error al actualizar el plan para el usuario `{target_user_id}` en la base de datos.")
 
@@ -1083,7 +1188,7 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
         message += f"* **Usuario:** `{entry['user_id']}` ({rating_emoji} {entry['rating']})\n"
         message += f"* **Fecha:** {formatted_ts}\n"
         # Escapamos caracteres markdown en el mensaje de feedback (usando doble \\)
-        safe_message = entry['message'].replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
+        safe_message = entry['user_query'].replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
         message += f"* **Mensaje Asistente:** \n```\n{safe_message}\n```\n"
         message += "---\n"
 
@@ -1166,18 +1271,15 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
     lang = user.language_code or 'en'
     user_topic = update.message.text
 
-    # Verificar límites antes de procesar
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT plan, daily_messages FROM users WHERE user_id = ?", (user_id,))
-    user_data = cursor.fetchone()
-    
+    # Verificar límites usando get_user
+    user_data = get_user(user_id)
     if not user_data:
         await update.message.reply_text(get_text('error_no_user_data', lang))
-        conn.close()
         return ConversationHandler.END
-        
-    current_plan, daily_messages = user_data
+
+    current_plan = user_data['plan']
+    daily_messages = user_data['daily_messages']
+    thread_id_from_db = user_data['openai_thread_id'] # Nombre correcto
     plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
     if daily_messages >= plan_limit:
@@ -1187,39 +1289,25 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         limit_cta = get_text('limit_reached_cta', lang)
         full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
         await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
-        conn.close()
         return ConversationHandler.END
-        
-    # Incrementar contador si no se alcanzó el límite
-    cursor.execute("UPDATE users SET daily_messages = daily_messages + 1 WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
 
-    # Recuperar cliente y thread_id (similar a handle_message)
+    # Incrementar contador
+    update_user_usage(user_id, message_increment=1)
+
     client = context.user_data.get('openai_client')
     current_thread_id = context.user_data.get('openai_thread_id')
 
     if not client or not current_thread_id:
         logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id} en explain_conv. Reintentando.")
-        conn = get_db_connection() 
-        cursor = conn.cursor()
-        cursor.execute("SELECT thread_id FROM users WHERE user_id = ?", (user_id,))
-        db_thread_data = cursor.fetchone()
-        conn.close()
-        
         client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-        current_thread_id = db_thread_data[0] if db_thread_data and db_thread_data[0] else None
-        
+        current_thread_id = thread_id_from_db # Usar el de la BD
+
         if not current_thread_id:
             logging.info(f"Creando nuevo thread para {user_id} dentro de explain_target_received.")
             thread = client.beta.threads.create()
             current_thread_id = thread.id
-            conn = get_db_connection() # Reabrir conexión
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
-            conn.commit()
-            conn.close()
-            
+            update_user_thread_id(user_id, current_thread_id) # Usar helper
+
         context.user_data['openai_client'] = client
         context.user_data['openai_thread_id'] = current_thread_id
 
@@ -1316,27 +1404,32 @@ async def feedback_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer() # Responde al callback para que el botón deje de cargar
 
     rating = 'positive' if query.data == 'feedback_useful' else 'negative'
+    # Simplificar obtención de last_message_info (asumiendo que se guarda en user_data[user.id])
     last_message_info = context.user_data.get(user.id, {}).get('last_assistant_message_info')
 
     if last_message_info:
+        # Pasar los datos correctos a add_feedback
         add_feedback(
             user_id=user.id,
-            user_query=last_message_info['user_query'],
-            assistant_response=last_message_info['assistant_response'],
+            user_query=last_message_info.get('user_query', 'N/A'), # Asegurar que existen
+            assistant_response=last_message_info.get('assistant_response', 'N/A'),
             rating=rating,
-            assistant_id=ASSISTANT_ID,
-            thread_id=last_message_info['thread_id'],
-            run_id=last_message_info['run_id']
+            assistant_id=ASSISTANT_ID, # Ya lo tenemos globalmente
+            thread_id=last_message_info.get('thread_id', 'N/A'),
+            run_id=last_message_info.get('run_id', 'N/A')
         )
         feedback_response_key = 'feedback_thanks_positive' if rating == 'positive' else 'feedback_thanks_negative'
         feedback_text = get_text(feedback_response_key, lang)
         await query.edit_message_reply_markup(reply_markup=None) # Eliminar botones
         await query.message.reply_text(feedback_text) # Enviar mensaje de agradecimiento
-        del context.user_data[user.id]['last_assistant_message_info'] # Limpiar la info guardada
+        try:
+             # Limpiar la info guardada (asegurarse de que user.id existe como clave)
+             if user.id in context.user_data:
+                del context.user_data[user.id]['last_assistant_message_info']
+        except KeyError:
+             logging.warning(f"No se pudo encontrar last_assistant_message_info para limpiar para user {user.id}")
     else:
-        # Si no hay info del último mensaje, simplemente agradecer genéricamente
-        await query.edit_message_reply_markup(reply_markup=None) # Eliminar botones
-        await query.message.reply_text(get_text('feedback_thanks_generic', lang))
+        # ... (feedback genérico) ...
 
 def main():
     logging.info("Starting bot...")

@@ -142,6 +142,7 @@ LOCALES = {
         'upgrade_payment_link_message': "Haz clic aquí para completar tu suscripción:",
         'error_price_id_not_found': "Error: No se encontró el ID de precio para ese plan.",
         'error_stripe_session': "Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.",
+        'error_processing_selection': "Error procesando la selección. Inténtalo de nuevo.", # <-- Añadido
         # Explain Conversation
         'explain_entry_prompt': "Claro, puedo ayudarte con eso. ¿Sobre qué tema específico (DPDR, ansiedad, un síntoma concreto, etc.) te gustaría que preparara una explicación sencilla para compartir?",
         'explain_cancel_instruction': "(Puedes escribir /cancel para detener esto en cualquier momento)",
@@ -160,7 +161,6 @@ LOCALES = {
         'support_cancel_confirmation': "De acuerdo, se canceló la solicitud de soporte.",
         'faq_removing_keyboard': "Cargando opciones...",
         'error_request_in_progress': "Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.", # <-- Añadido
-        'error_processing_selection': "Error procesando la selección. Inténtalo de nuevo.", # <-- Añadido
     },
     'en': {
         # FAQ Buttons
@@ -235,6 +235,19 @@ LOCALES = {
         'faq_removing_keyboard': "Loading options...",
         'error_request_in_progress': "I'm currently processing your previous request. Please wait a moment before sending a new one.", # <-- Added
         'error_processing_selection': "Error processing selection. Please try again.", # <-- Added
+        # Upgrade Command Text
+        'upgrade_title': "Select the plan you want to upgrade to:",
+        'upgrade_basic_desc': "💎 **Basic Plan (€{price}/month):**\n- {limit} messages/day",
+        'upgrade_premium_desc': "👑 **Premium Plan (€{price}/month):**\n- {limit} messages/day",
+        'upgrade_footer': "*You will be redirected to Stripe to complete the secure payment.*",
+        'error_stripe_ids_missing': "Sorry, the plan upgrade option is not configured correctly.",
+        # Explain Conversation
+        'explain_entry_prompt': "Claro, puedo ayudarte con eso. ¿Sobre qué tema específico (DPDR, ansiedad, un síntoma concreto, etc.) te gustaría que preparara una explicación sencilla para compartir?",
+        'explain_cancel_instruction': "(Puedes escribir /cancel para detener esto en cualquier momento)",
+        'explain_wait': "Vale, preparando una explicación sobre '{topic}'... Dame un momento.",
+        'explain_response_header': "Aquí tienes una propuesta de explicación que puedes compartir o adaptar:",
+        'explain_response_footer': "Espero que sea útil. ¿Puedo ayudarte con algo más?",
+        'explain_cancel_confirmation': "De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras.",
     }
 }
 
@@ -940,30 +953,54 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra opciones para actualizar el plan con botones inline."""
-    if not STRIPE_PRICE_ID_BASIC or not STRIPE_PRICE_ID_PREMIUM:
-        await update.message.reply_text("Lo siento, la opción de mejora de plan no está configurada correctamente.")
-        logging.error("IDs de precios de Stripe no configurados en variables de entorno.")
+    # --- Nueva obtención de idioma ---
+    user = update.effective_user
+    lang = user.language_code or 'en'
+    # ---------------------------------
+
+    # --- Usar constantes para los Price IDs --- 
+    basic_price_id = os.getenv('STRIPE_PRICE_ID_BASIC')
+    premium_price_id = os.getenv('STRIPE_PRICE_ID_PREMIUM')
+    # ----------------------------------------
+
+    if not basic_price_id or not premium_price_id:
+        # Traducir error
+        error_msg = get_text('error_stripe_ids_missing', lang, default="Lo siento, la opción de mejora de plan no está configurada correctamente.")
+        await update.message.reply_text(error_msg)
+        logging.error("IDs de precios de Stripe (BASIC o PREMIUM) no configurados en variables de entorno.")
         return
         
+    # --- Obtener precios y límites desde SUBSCRIPTION_PLANS ---
+    basic_plan = SUBSCRIPTION_PLANS.get('BASIC', {})
+    premium_plan = SUBSCRIPTION_PLANS.get('PREMIUM', {})
+    basic_price = basic_plan.get('price', 'N/A')
+    premium_price = premium_plan.get('price', 'N/A')
+    basic_limit = basic_plan.get('daily_messages', 'N/A')
+    premium_limit = premium_plan.get('daily_messages', 'N/A')
+    # ------------------------------------------------------
+    
     keyboard = [
         [
-            InlineKeyboardButton(f"💎 Plan Basic - {SUBSCRIPTION_PLANS['BASIC']['price']}€/mes", callback_data=f"upgrade_basic_{STRIPE_PRICE_ID_BASIC}"),
+            # Usar constantes obtenidas
+            InlineKeyboardButton(f"💎 Plan Basic - {basic_price}€/mes", callback_data=f"upgrade_basic_{basic_price_id}"),
         ],
         [
-            InlineKeyboardButton(f"👑 Plan Premium - {SUBSCRIPTION_PLANS['PREMIUM']['price']}€/mes", callback_data=f"upgrade_premium_{STRIPE_PRICE_ID_PREMIUM}"),
+            # Usar constantes obtenidas
+            InlineKeyboardButton(f"👑 Plan Premium - {premium_price}€/mes", callback_data=f"upgrade_premium_{premium_price_id}"),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    message_text = (
-        "Selecciona el plan al que quieres actualizar:\n\n"
-        f"💎 **Plan Basic ({SUBSCRIPTION_PLANS['BASIC']['price']}€/mes):**\n"
-        f"- {SUBSCRIPTION_PLANS['BASIC']['daily_messages']} mensajes/día\n\n"
-        f"👑 **Plan Premium ({SUBSCRIPTION_PLANS['PREMIUM']['price']}€/mes):**\n"
-        f"- {SUBSCRIPTION_PLANS['PREMIUM']['daily_messages']} mensajes/día\n\n"
-        "*Serás redirigido a Stripe para completar el pago seguro.*"
-    )
-    await update.message.reply_text(message_text, reply_markup=reply_markup)
+    # --- Usar get_text para el mensaje ---
+    title = get_text('upgrade_title', lang, default="Selecciona el plan al que quieres actualizar:")
+    basic_desc = get_text('upgrade_basic_desc', lang, default="💎 **Plan Basic ({price}€/mes):**\n- {limit} mensajes/día").format(price=basic_price, limit=basic_limit)
+    premium_desc = get_text('upgrade_premium_desc', lang, default="👑 **Plan Premium ({price}€/mes):**\n- {limit} mensajes/día").format(price=premium_price, limit=premium_limit)
+    footer = get_text('upgrade_footer', lang, default="*Serás redirigido a Stripe para completar el pago seguro.*")
+    
+    message_text = f"{title}\n\n{basic_desc}\n\n{premium_desc}\n\n{footer}"
+    # -----------------------------------
+
+    await update.message.reply_text(message_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def create_stripe_checkout_session(price_id: str, user_id: int) -> str | None:
     """Crea una sesión de Checkout en Stripe y devuelve la URL."""

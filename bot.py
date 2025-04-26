@@ -160,6 +160,7 @@ LOCALES = {
         'support_cancel_confirmation': "De acuerdo, se canceló la solicitud de soporte.",
         'faq_removing_keyboard': "Cargando opciones...",
         'error_request_in_progress': "Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.", # <-- Añadido
+        'error_processing_selection': "Error procesando la selección. Inténtalo de nuevo.", # <-- Añadido
     },
     'en': {
         # FAQ Buttons
@@ -233,6 +234,7 @@ LOCALES = {
         'support_cancel_confirmation': "Okay, the support request has been cancelled.",
         'faq_removing_keyboard': "Loading options...",
         'error_request_in_progress': "I'm currently processing your previous request. Please wait a moment before sending a new one.", # <-- Added
+        'error_processing_selection': "Error processing selection. Please try again.", # <-- Added
     }
 }
 
@@ -1000,27 +1002,47 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
     user = query.from_user
     user_id = user.id
     lang = user.language_code or 'en'
+    
+    # Log de entrada y datos recibidos
+    logging.info(f"upgrade_button_handler: Entrando para user {user_id}. Callback data: '{query.data}'")
+    
     await query.answer() # Responde al callback
 
-    plan_type = query.data.split('_')[1] # 'basic' o 'premium'
-    price_id = STRIPE_PRICE_IDS.get(plan_type)
-
-    if not price_id:
-        logging.error(f"Price ID no encontrado para el plan '{plan_type}'")
-        # Traducir mensaje de error
-        error_text = get_text('error_price_id_not_found', lang, default="Error: No se encontró el ID de precio para ese plan.")
-        await query.edit_message_text(error_text)
+    try:
+        parts = query.data.split('_')
+        if len(parts) < 3 or parts[0] != 'upgrade':
+             raise ValueError("Formato de callback_data incorrecto")
+        plan_type = parts[1] # 'basic' or 'premium'
+        price_id = '_'.join(parts[2:]) 
+        logging.info(f"upgrade_button_handler: Parsed plan_type='{plan_type}', price_id='{price_id}'")
+    except (IndexError, ValueError) as e:
+        logging.error(f"upgrade_button_handler: Error parseando callback_data '{query.data}': {e}")
+        error_text = get_text('error_processing_selection', lang, default="Error procesando la selección. Inténtalo de nuevo.")
+        try:
+             await query.edit_message_text(error_text)
+        except Exception as edit_e:
+             logging.warning(f"upgrade_button_handler: No se pudo editar mensaje de error: {edit_e}")
         return
 
-    # <<< --- AÑADIR ESTE LOG --- >>>
-    logging.info(f"Extracted Price ID from callback: '{price_id}' for plan {plan_type}")
-    # <<< ------------------------------------ >>>
+    if not price_id:
+        logging.error(f"upgrade_button_handler: Price ID vacío después de parsear para plan '{plan_type}' desde callback_data '{query.data}'")
+        error_text = get_text('error_price_id_not_found', lang, default="Error: No se encontró el ID de precio para ese plan.")
+        try:
+            await query.edit_message_text(error_text)
+        except Exception as edit_e:
+             logging.warning(f"upgrade_button_handler: No se pudo editar mensaje de error ID vacío: {edit_e}")
+        return
 
-    # Editar mensaje para indicar progreso (traducir)
+    logging.info(f"upgrade_button_handler: Extracted Price ID from callback: '{price_id}' for plan {plan_type}")
+
     progress_text = get_text('upgrade_generating_link', lang, default="Generando enlace de pago seguro...")
-    await query.edit_message_text(progress_text)
+    try:
+        await query.edit_message_text(progress_text)
+    except Exception as edit_e:
+        logging.warning(f"upgrade_button_handler: No se pudo editar mensaje de progreso: {edit_e}")
 
     try:
+        logging.info(f"upgrade_button_handler: Intentando crear sesión de Stripe con Price ID: {price_id}")
         checkout_session = stripe.checkout.Session.create(
             line_items=[
                 {
@@ -1031,25 +1053,29 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
             mode='subscription',
             success_url=YOUR_DOMAIN + '/success?session_id={CHECKOUT_SESSION_ID}',
             cancel_url=YOUR_DOMAIN + '/cancel',
-            customer_email=None, # Opcional: puedes intentar prellenarlo si tienes el email
+            customer_email=None, 
             metadata={
-                'telegram_user_id': str(user_id) # Convertir a string para metadata
+                'telegram_user_id': str(user_id) 
             }
         )
+        logging.info(f"upgrade_button_handler: Sesión de Stripe creada: {checkout_session.id}")
 
-        # Enviar el enlace de pago (traducir mensaje)
         payment_link_text = get_text('upgrade_payment_link_message', lang, default="Haz clic aquí para completar tu suscripción:")
         await query.message.reply_text(
             f"{payment_link_text} <a href=\"{checkout_session.url}\">Pagar Ahora</a>", 
             parse_mode=ParseMode.HTML, 
             disable_web_page_preview=True
         )
+        logging.info(f"upgrade_button_handler: Enlace de pago enviado a user {user_id}")
 
     except Exception as e:
-        logging.error(f"Error al crear la sesión de Stripe para el usuario {user_id}: {e}")
-        # Traducir mensaje de error
+        logging.error(f"upgrade_button_handler: Error al crear la sesión de Stripe para el usuario {user_id}: {e}", exc_info=True)
         stripe_error_text = get_text('error_stripe_session', lang, default="Lo siento, hubo un error al generar el enlace de pago. Por favor, inténtalo de nuevo más tarde.")
-        await query.message.reply_text(stripe_error_text)
+        # Intentar enviar como respuesta al mensaje original si la edición falló
+        try:
+             await query.message.reply_text(stripe_error_text)
+        except Exception as reply_e:
+             logging.error(f"upgrade_button_handler: No se pudo ni editar ni responder con error de Stripe: {reply_e}")
 
 async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user

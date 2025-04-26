@@ -2052,6 +2052,54 @@ async def manage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- Fin Funciones Portal ---
 
+# --- Funciones Auxiliares para Roles Admin (AÑADIDAS) ---
+async def is_user_admin(user_id: int) -> bool:
+    """Verifica si un usuario es administrador consultando la BD."""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Asegurarse de que la columna is_admin existe y se consulta
+        cursor.execute("SELECT is_admin FROM users WHERE user_id = ?", (user_id,))
+        result = cursor.fetchone()
+        # Devolver True si se encuentra el usuario y is_admin es 1
+        is_admin = bool(result and result['is_admin'] == 1)
+        # logging.debug(f"is_user_admin check for {user_id}: {is_admin}") # Log opcional
+        return is_admin
+    except sqlite3.Error as e:
+        # Loguear si la columna no existe u otro error
+        logging.error(f"Error verificando estado admin para {user_id} (puede que falte columna 'is_admin'): {e}")
+        return False # Asumir no admin si hay error
+    finally:
+        if conn:
+            conn.close()
+
+async def set_admin_status(target_user_id: int, status: bool) -> bool:
+    """Establece el estado de administrador (1 para True, 0 para False)."""
+    conn = None
+    admin_value = 1 if status else 0
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Verificar si el usuario existe primero
+        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (target_user_id,))
+        user_exists = cursor.fetchone()
+        if not user_exists:
+            logging.warning(f"Intento de cambiar estado admin para usuario inexistente: {target_user_id}")
+            return False # No se puede cambiar estado a usuario inexistente
+            
+        cursor.execute("UPDATE users SET is_admin = ? WHERE user_id = ?", (admin_value, target_user_id))
+        conn.commit()
+        logging.info(f"Estado admin actualizado para {target_user_id}: {status}")
+        return True
+    except sqlite3.Error as e:
+        logging.error(f"Error actualizando estado admin para {target_user_id}: {e}")
+        return False
+    finally:
+        if conn:
+            conn.close()
+# --- Fin Funciones Auxiliares Admin ---
+
 def main():
     logging.info("Starting bot...")
     verify_env_variables()

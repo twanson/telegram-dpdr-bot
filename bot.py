@@ -455,6 +455,12 @@ def get_all_users(plan_filter: str | None = None):
         if conn:
             conn.close()
 
+def get_db_connection(): # <-- Definir la función faltante
+    """Establece conexión con la base de datos SQLite."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row # Para devolver filas como diccionarios
+    return conn
+
 def update_user_thread_id(user_id: int, thread_id: str | None):
     """Actualiza o borra el thread_id de OpenAI para un usuario."""
     conn = None

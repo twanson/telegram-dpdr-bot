@@ -2181,6 +2181,9 @@ def main():
         application.add_handler(CommandHandler("view_feedback", admin_view_feedback_command))
         application.add_handler(CommandHandler("list_users", admin_list_users_command))
         application.add_handler(CommandHandler("set_customer_id", admin_set_customer_id_command))
+        application.add_handler(CommandHandler("list_admins", list_admins_command))
+        application.add_handler(CommandHandler("add_admin", add_admin_command))
+        application.add_handler(CommandHandler("remove_admin", remove_admin_command))
         # -------------------------------
 
         logging.info("Bot initialized successfully")

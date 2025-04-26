@@ -110,23 +110,23 @@ LOCALES = {
         'help_reset': "/reset - Reinicia tu conversación con el bot",
         'help_help': "/help - Muestra esta lista de comandos",
         'help_support': "/support - Contactar con soporte (si necesitas ayuda)",
-        'help_cta': "\\nTambién puedes escribirme directamente tu pregunta o seleccionar una opción de /faq.",
+        'help_cta': "\nTambién puedes escribirme directamente tu pregunta o seleccionar una opción de /faq.",
         'plan_title': "📊 Tu plan actual:",
         'plan_messages_today': "✉️ Mensajes usados hoy:",
         'plan_expires': "📅 Tu suscripción vence el: {expiry_date}",
         'plan_expiry_error': "Fecha inválida",
-        'plan_available_title': "�� Planes disponibles",
-        'plan_free_desc': \"\"\"*GRATUITO:*
+        'plan_available_title': "💡 Planes disponibles",
+        'plan_free_desc': """*GRATUITO:*
 - Plan básico gratuito
-- {limit} mensajes/día\"\"\",
-        'plan_basic_desc': \"\"\"*BÁSICO:*
+- {limit} mensajes/día""",
+        'plan_basic_desc': """*BÁSICO:*
 - Para uso regular
 - {limit} mensajes/día
-- Precio: {price}€/mes\"\"\",
-        'plan_premium_desc': \"\"\"*PREMIUM:*
+- Precio: {price}€/mes""",
+        'plan_premium_desc': """*PREMIUM:*
 - Para uso intensivo
 - {limit} mensajes/día
-- Precio: {price}€/mes\"\"\",
+- Precio: {price}€/mes""",
         'plan_upgrade_cta_free': "🌟 Usa /upgrade para mejorar tu plan y obtener más mensajes diarios.",
         'plan_upgrade_cta_paid': "🌟 Puedes usar /upgrade si deseas cambiar tu plan.",
         'limit_reached_1': "Has alcanzado tu límite diario de mensajes. 🚫",
@@ -194,17 +194,17 @@ LOCALES = {
         'plan_messages_today': "✉️ Messages used today:",
         'plan_expires': "📅 Your subscription expires on: {expiry_date}", # Added placeholder
         'plan_available_title': "💡 Available plans", # Removed colon
-        'plan_free_desc': "*FREE:*
+        'plan_free_desc': """*FREE:*
 - Basic free plan
-- {limit} messages/day",
-        'plan_basic_desc': "*BASIC:*
+- {limit} messages/day""",
+        'plan_basic_desc': """*BASIC:*
 - For regular use
 - {limit} messages/day
-- Price: €{price}/month",
-        'plan_premium_desc': "*PREMIUM:*
+- Price: €{price}/month""",
+        'plan_premium_desc': """*PREMIUM:*
 - For heavy use
 - {limit} messages/day
-- Price: €{price}/month",
+- Price: €{price}/month""",
         'plan_upgrade_cta_free': "🌟 Use /upgrade to improve your plan and get more daily messages.",
         'plan_upgrade_cta_paid': "🌟 You can use /upgrade if you wish to change your plan.",
         'limit_reached_1': "You have reached your daily message limit. 🚫",

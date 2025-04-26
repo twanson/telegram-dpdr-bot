@@ -72,6 +72,18 @@ CRITICAL_KEYWORDS = [
 # Variable global para activar/desactivar la comprobación de palabras clave
 CHECK_CRITICAL_KEYWORDS = False # Poner a True para activar la comprobación
 
+# --- Instrucciones Base para OpenAI --- 
+BASE_INSTRUCTIONS = (
+    "Actúa como un asistente empático y conocedor, especializado en DPDR pero también capaz de "
+    "ofrecer apoyo e información sobre la ansiedad en general. Basa tus respuestas en tu conocimiento, "
+    "especialmente en DPDR. Proporciona respuestas claras y de apoyo."
+)
+NO_CITATION_INSTRUCTION = (
+    " Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
+    "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
+)
+# -------------------------------------
+
 # --- Textos para Internacionalización (i18n) --- 
 LOCALES = {
     'es': {
@@ -159,9 +171,8 @@ LOCALES = {
         'support_cancel_instruction': "(Escribe /cancel si cambias de opinión)",
         'support_confirmation': "Gracias. Tu consulta ha sido enviada al equipo de soporte. Te contactarán si es necesario.",
         'support_cancel_confirmation': "De acuerdo, se canceló la solicitud de soporte.",
-        'faq_removing_keyboard': "Cargando opciones...",
-        'error_request_in_progress': "Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.", # <-- Añadido
-        'error_stripe_specific': "Error de pago: {error}", # <-- Añadido
+        'error_request_in_progress': "Estoy procesando tu solicitud anterior. Por favor, espera un momento antes de enviar una nueva.",
+        'error_stripe_specific': "Error de pago: {error}",
         # Upgrade Command Text
         'upgrade_title': "Selecciona el plan al que quieres actualizar:",
         'upgrade_basic_desc': "💎 **Plan Basic ({price}€/mes):**\n- {limit} mensajes/día",
@@ -169,6 +180,8 @@ LOCALES = {
         'upgrade_footer': "*Serás redirigido a Stripe para completar el pago seguro.*",
         'error_stripe_ids_missing': "Lo siento, la opción de mejora de plan no está configurada correctamente.",
         # Explain Conversation
+        'processing_request': "🧠 Procesando tu solicitud... Por favor, espera un momento.", # <-- Añadido
+        'consulting_knowledge_base': "Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.", # <-- Añadido
     },
     'en': {
         # FAQ Buttons
@@ -240,9 +253,8 @@ LOCALES = {
         'support_cancel_instruction': "(Type /cancel if you change your mind)",
         'support_confirmation': "Thank you. Your query has been sent to the support team. They will contact you if necessary.",
         'support_cancel_confirmation': "Okay, the support request has been cancelled.",
-        'faq_removing_keyboard': "Loading options...",
-        'error_request_in_progress': "I'm currently processing your previous request. Please wait a moment before sending a new one.", # <-- Added
-        'error_processing_selection': "Error processing selection. Please try again.", # <-- Added
+        'error_request_in_progress': "I'm currently processing your previous request. Please wait a moment before sending a new one.",
+        'error_processing_selection': "Error processing selection. Please try again.",
         # Upgrade Command Text
         'upgrade_title': "Select the plan you want to upgrade to:",
         'upgrade_basic_desc': "💎 **Basic Plan (€{price}/month):**\n- {limit} messages/day",
@@ -258,6 +270,8 @@ LOCALES = {
         'explain_cancel_confirmation': "De acuerdo, cancelamos la preparación de la explicación. Puedes usar /faq cuando quieras.",
         'error_stripe_session': "Sorry, there was an error generating the payment link. Please try again later.",
         'error_stripe_specific': "Payment Error: {error}", # <-- Added
+        'processing_request': "🧠 Processing your request... Please wait a moment.", # <-- Added
+        'consulting_knowledge_base': "Consulting the knowledge base... 🧠 Please wait a few moments while I prepare your answer.", # <-- Added
     }
 }
 
@@ -743,9 +757,24 @@ async def process_user_input(user_id: int, lang: str, message_text: str, context
                 content=message_text, 
             )
 
+            # --- Construir instrucciones finales --- 
+            final_instructions = BASE_INSTRUCTIONS + f" Responde siempre en {lang}." + NO_CITATION_INSTRUCTION
+            logging.debug(f"Instrucciones para OpenAI (process_user_input): {final_instructions}")
+            # -------------------------------------
+
+            # --- Enviar mensaje de espera --- 
+            wait_msg_text = get_text('consulting_knowledge_base', lang) # <-- Usar nueva clave
+            if update.callback_query:
+                 # No enviar mensaje de espera si es un callback
+                 pass 
+            else:
+                 await update.message.reply_text(wait_msg_text)
+            # ----------------------------------
+
             run = client.beta.threads.runs.create(
                 thread_id=current_thread_id,
                 assistant_id=ASSISTANT_ID,
+                instructions=final_instructions, # <-- Pasar instrucciones
                 # model=model_to_use 
             )
 
@@ -887,11 +916,28 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    user_id = user.id
     lang = user.language_code or 'en'
     message_text = update.message.text
 
-    # Pasar el procesamiento a la función helper
+    # --- Comprobar si el texto es un botón FAQ conocido --- 
+    faq_keys = ['faq_understand_dpdr', 'faq_general_anxiety', 'faq_symptoms', 
+                'faq_exercises', 'faq_explain_other', 'faq_resources']
+    is_faq_button = False
+    for key in faq_keys:
+        if message_text == get_text(key, lang):
+            is_faq_button = True
+            break
+    # -----------------------------------------------------
+
+    # Si NO es un botón FAQ, o si es CUALQUIER otro texto, procesarlo normalmente
+    # (La lógica de FAQ dentro de process_user_input ya no es necesaria si usamos este método)
     await process_user_input(user.id, lang, message_text, context, update)
+
+    # Si es un botón de FAQ, podrías querer quitar el teclado después de procesar
+    # if is_faq_button:
+    #    await update.message.reply_text(get_text('faq_response_loading', lang, default="Procesando tu selección..."), 
+    #                                 reply_markup=ReplyKeyboardRemove())
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
@@ -930,23 +976,18 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    lang = user.language_code or 'en' # Asegurarse de tener un idioma por defecto
+    lang = user.language_code or 'en'
 
-    # Eliminar cualquier teclado de respuesta anterior
-    await update.message.reply_text(get_text('faq_removing_keyboard', lang, default="Cargando opciones..."), 
-                                  reply_markup=ReplyKeyboardRemove())
-
+    # --- Volver a ReplyKeyboardMarkup --- 
     keyboard = [
-        [InlineKeyboardButton(get_text('faq_understand_dpdr', lang), callback_data='faq_understand_dpdr')], # Usar clave como callback_data
-        [InlineKeyboardButton(get_text('faq_general_anxiety', lang), callback_data='faq_general_anxiety')],
-        [InlineKeyboardButton(get_text('faq_explain_other', lang), callback_data='faq_explain_other')],
-        [InlineKeyboardButton(get_text('faq_symptoms', lang), callback_data='faq_symptoms')],
-        [InlineKeyboardButton(get_text('faq_exercises', lang), callback_data='faq_exercises')],
-        [InlineKeyboardButton(get_text('faq_resources', lang), callback_data='faq_resources')]
+        [get_text('faq_understand_dpdr', lang), get_text('faq_general_anxiety', lang)],
+        [get_text('faq_symptoms', lang), get_text('faq_exercises', lang)],
+        [get_text('faq_explain_other', lang), get_text('faq_resources', lang)]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    # ... (resto del código para construir faq_text)
+    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    # ------------------------------------
+    
+    # --- Texto original de descripción --- 
     text_lines = [
         get_text('faq_area_understand', lang),
         get_text('faq_area_anxiety', lang),
@@ -954,11 +995,12 @@ async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         get_text('faq_area_symptoms', lang),
         get_text('faq_area_exercises', lang),
         get_text('faq_area_resources', lang),
-        "\n" + get_text('faq_select_area', lang) # Añadir nueva línea antes del prompt
+        "\n" + get_text('faq_select_area', lang) 
     ]
     faq_text = "\n".join(text_lines)
+    # -----------------------------------
 
-    # Enviar el mensaje principal con el teclado inline
+    # Enviar mensaje con el teclado de respuesta
     await update.message.reply_text(faq_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1124,15 +1166,15 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         payment_link_text = get_text('upgrade_payment_link_message', lang, default="Haz clic aquí para completar tu suscripción:")
         # Asegurarse de que session_url no es None antes de usarlo
         if session_url:
-            await query.message.reply_text(
-                f"{payment_link_text} <a href=\"{session_url}\">Pagar Ahora</a>", 
-                parse_mode=ParseMode.HTML, 
-                disable_web_page_preview=True
-            )
+            # --- Enviar enlace como Botón Inline --- 
+            keyboard = [[InlineKeyboardButton("➡️ Pagar Ahora en Stripe", url=session_url)]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.message.reply_text(payment_link_text, reply_markup=reply_markup)
+            # ---------------------------------------
             logging.info(f"upgrade_button_handler: Enlace de pago enviado a user {user_id}")
         else:
              logging.error(f"upgrade_button_handler: checkout_session.url devuelta por Stripe es None para session {checkout_session.id}")
-             await query.message.reply_text(get_text('error_stripe_session', lang)) # Reenviar mensaje de error
+             await query.message.reply_text(get_text('error_stripe_session', lang))
 
     # --- Captura de errores más específica --- 
     except stripe.error.StripeError as e:
@@ -1501,11 +1543,7 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         f"y enfocándose en cómo pueden apoyar. Evita jerga técnica compleja. Si el tema es vago, intenta dar una explicación general útil."
     )
     # Añadir instrucción de idioma y limpieza
-    final_instructions = explain_instruction + (
-        f" Responde siempre en {lang}. " # Asegurar el idioma de respuesta
-        "Es **absolutamente prohibido** incluir cualquier tipo de anotación, cita o referencia a archivos fuente "
-        "(ej: 【...†source】, [...]) en la respuesta. La respuesta debe ser texto limpio sin esas anotaciones."
-    )
+    final_instructions = explain_instruction + f" Responde siempre en {lang}." + NO_CITATION_INSTRUCTION # <-- Usar constante
 
     # Lógica de OpenAI (similar a handle_message)
     try:
@@ -1530,7 +1568,7 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         run = client.beta.threads.runs.create(
             thread_id=current_thread_id, 
             assistant_id=ASSISTANT_ID, 
-            instructions=final_instructions
+            instructions=final_instructions # <-- Asegurarse de pasarla
             # model=... # Añadir selección de modelo aquí
         )
 
@@ -1659,27 +1697,6 @@ async def support_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(cancel_message)
     return ConversationHandler.END
 
-# --- Handler para botones FAQ ---
-async def faq_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Maneja los clics en los botones inline del comando /faq."""
-    query = update.callback_query
-    user = query.from_user
-    lang = user.language_code or 'en'
-    
-    # Responder al callback para quitar el estado "loading"
-    await query.answer()
-
-    # El callback_data es la clave de LOCALES para el botón pulsado
-    faq_key = query.data
-    # Obtener el texto que el usuario ve en el botón (será el input para la IA)
-    button_text = get_text(faq_key, lang)
-
-    logging.info(f"Botón FAQ pulsado por {user.id}: {faq_key} ('{button_text}')")
-
-    # Procesar este texto como si el usuario lo hubiera escrito
-    # Pasamos 'update' para que process_user_input sepa que viene de un callback
-    await process_user_input(user.id, lang, button_text, context, update)
-
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
@@ -1746,7 +1763,7 @@ def main():
         # -------------------------------------------
         
         # --- Añadir Handler para botones de FAQ ---
-        application.add_handler(CallbackQueryHandler(faq_button_handler, pattern='^faq_')) # <-- Nuevo handler FAQ
+        # application.add_handler(CallbackQueryHandler(faq_button_handler, pattern='^faq_')) 
         # ---------------------------------------
 
         # Handler general de mensajes (al final)

@@ -1021,6 +1021,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'start_upgrade',
         'start_reset',
         'start_help',
+        'manage_command_description', # <-- Añadir /manage
         'start_cta'
     ]
 
@@ -1071,6 +1072,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'start_upgrade',
         'start_reset',
         'start_help',
+        'manage_command_description', # <-- Añadir /manage
         'help_support' # Clave específica de help
         # 'help_cta' # Decidimos si incluir la llamada a la acción aquí o no
     ]

@@ -824,22 +824,28 @@ async def process_user_input(user_id: int, lang: str, message_text: str, context
         thread_id_from_db = user_data['openai_thread_id'] 
         plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
-        # 1. Verificar límite de mensajes
-        if daily_messages >= plan_limit:
-            user_context['is_processing'] = False # Desbloquear
-            plan_name = current_plan.capitalize()
-            limit_msg_1 = get_text('limit_reached_1', lang)
-            limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=plan_name, limit=plan_limit)
-            limit_cta = get_text('limit_reached_cta', lang)
-            full_limit_message = f"{limit_msg_1}\n{limit_msg_2}\n\n{limit_cta}"
-            if update.callback_query:
-                 await update.callback_query.answer() # Responder primero al callback
-                 await update.callback_query.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
-            else:
-                 await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
-            return
+        # --- Saltar comprobación de límite para ADMINS ---
+        is_admin = await is_user_admin(user_id) # <-- Usar nueva función async
+        if not is_admin:
+            # 1. Verificar límite de mensajes (solo si NO es admin)
+            if daily_messages >= plan_limit:
+                user_context['is_processing'] = False # Desbloquear
+                plan_name = current_plan.capitalize() # TODO: Usar nombre de plan localizado?
+                limit_msg_1 = get_text('limit_reached_1', lang)
+                # Asegurarse de pasar los kwargs necesarios aquí
+                limit_msg_2 = get_text('limit_reached_2', lang).format(plan_name=get_text(f'plan_{current_plan.lower()}_name', lang, default=plan_name), limit=plan_limit)
+                limit_cta = get_text('limit_reached_cta', lang)
+                full_limit_message = f"{limit_msg_1}\\n{limit_msg_2}\\n\\n{limit_cta}"
+                if update.callback_query:
+                    await update.callback_query.answer() # Responder primero al callback
+                    await update.callback_query.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+                else:
+                    await update.message.reply_text(full_limit_message, parse_mode=ParseMode.MARKDOWN)
+                return
+        # Si es admin, el código continúa directamente aquí abajo sin verificar el límite
 
         # 2. Incrementar contador de mensajes (usando la función helper)
+        # Se incrementa para todos, incluso admins, para estadísticas si se quiere
         update_user_usage(user_id, message_increment=1)
 
         # --- Lógica OpenAI --- 
@@ -1436,6 +1442,7 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Construir Bloque Inglés ---
     plan_info_expires_en = ""
     if current_plan.upper() != 'FREE':
+        # Pasar expiry_date al formatear
         plan_info_expires_en = get_text('plan_expires', 'en', default="📅 Your subscription expires on: {expiry_date}").format(expiry_date=expiry_date_formatted_en)
 
     block_en = (
@@ -1444,6 +1451,7 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{get_text('plan_messages_today', 'en', default='✉️ Messages used today:')} {daily_messages}/{plan_limit}\n"
         f"{plan_info_expires_en}\n\n"
         f"{get_text('plan_available_title', 'en', default='💡 Available plans')}\n"
+        # Pasar limit y price al formatear
         f"{get_text('plan_free_desc', 'en', default='*FREE:*\n- Basic free plan\n- {limit} messages/day').format(limit=free_limit)}\n"
         f"{get_text('plan_basic_desc', 'en', default='*BASIC:*\n- For regular use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=basic_limit, price=basic_price)}\n"
         f"{get_text('plan_premium_desc', 'en', default='*PREMIUM:*\n- For heavy use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=premium_limit, price=premium_price)}"
@@ -1453,6 +1461,7 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Construir Bloque Español ---
     plan_info_expires_es = ""
     if current_plan.upper() != 'FREE':
+        # Pasar expiry_date al formatear
         plan_info_expires_es = get_text('plan_expires', 'es', default='📅 Tu suscripción vence el: {expiry_date}').format(expiry_date=expiry_date_formatted_es)
 
     block_es = (
@@ -1461,6 +1470,7 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{get_text('plan_messages_today', 'es', default='✉️ Mensajes usados hoy:')} {daily_messages}/{plan_limit}\n"
         f"{plan_info_expires_es}\n\n"
         f"{get_text('plan_available_title', 'es', default='💡 Planes disponibles')}\n"
+        # Pasar limit y price al formatear
         f"{get_text('plan_free_desc', 'es', default='*GRATUITO:*\n- Plan básico gratuito\n- {limit} mensajes/día').format(limit=free_limit)}\n"
         f"{get_text('plan_basic_desc', 'es', default='*BÁSICO:*\n- Para uso regular\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=basic_limit, price=basic_price)}\n"
         f"{get_text('plan_premium_desc', 'es', default='*PREMIUM:*\n- Para uso intensivo\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=premium_limit, price=premium_price)}"

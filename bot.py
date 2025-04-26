@@ -1001,6 +1001,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     lang = user.language_code or 'en'
+    logging.info(f"help_command: Ejecutado por user {user.id} (lang: {lang})") # <-- Log entrada
 
     # Definir las claves de texto para el mensaje de ayuda
     help_message_keys = [
@@ -1018,8 +1019,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = create_bilingual_block(help_message_keys, join_char="\n", separator="\n\n---\n\n")
     
     # Añadir CTA opcional después (quizás no bilingüe o con su propia clave)
-    cta_text = get_text('help_cta', lang) # Obtener CTA en el idioma del usuario 
-    # help_text += "\n\n" + cta_text 
+    cta_text = get_text('help_cta', lang) # Obtener CTA en el idioma del usuario
+    # Descomentar para añadir CTA
+    help_text += "\n\n" + cta_text
+    
+    logging.info(f"help_command: Texto generado (primeros 100 chars): {help_text[:100]}") # <-- Log texto
 
     await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
@@ -1230,6 +1234,13 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         # -------------------------------------------
         logging.info(f"upgrade_button_handler: Intentando crear sesión de Stripe con Price ID: {price_id}")
         
+        # --- Construir Mensaje Bilingüe --- 
+        # Usamos create_bilingual_block para ambos textos
+        payment_link_text = create_bilingual_block(['upgrade_payment_link_message'], separator="\n")
+        desktop_notice = create_bilingual_block(['upgrade_desktop_copy_notice'], separator="\n")
+        full_message_text = f"{payment_link_text}{desktop_notice}" # Combinar (el notice ya tiene su propio salto de línea)
+        # ----------------------------------
+
         # --- Configurar timeout para Stripe --- 
         stripe.timeout = 30 # 30 segundos de timeout
         # --------------------------------------
@@ -1254,10 +1265,6 @@ async def upgrade_button_handler(update: Update, context: ContextTypes.DEFAULT_T
         session_url = checkout_session.url
         logging.info(f"upgrade_button_handler: Sesión de Stripe creada: {checkout_session.id}. URL: {session_url}")
         # ----------------------------------
-
-        payment_link_text = get_text('upgrade_payment_link_message', lang, default="Haz clic aquí para completar tu suscripción:")
-        desktop_notice = get_text('upgrade_desktop_copy_notice', lang) # <-- Obtener nota
-        full_message_text = payment_link_text + desktop_notice # <-- Combinar textos
 
         # Asegurarse de que session_url no es None antes de usarlo
         if session_url:

@@ -391,7 +391,7 @@ SUBSCRIPTION_PLANS = {
         "name": "Plan premium",
         "daily_messages": 20,
         "tokens_per_day": 10000,
-        "price": 6.99
+        "price": 4.99
     }
 }
 

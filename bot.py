@@ -512,7 +512,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cursor = conn.cursor()
 
     # Verificar si el usuario ya existe
-    cursor.execute("SELECT plan, expiry_date, openai_thread_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT plan, expiry_date, thread_id FROM users WHERE user_id = ?", (user_id,))
     user_data = cursor.fetchone()
 
     if not user_data:
@@ -525,9 +525,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         conn.commit()
         logging.info(f"Nuevo usuario {user_id} ({user.username}) añadido con plan 'free'.")
-        openai_thread_id = None # El thread se creará al primer mensaje
+        thread_id = None # El thread se creará al primer mensaje
     else:
-        _, _, openai_thread_id = user_data
+        _, _, thread_id = user_data
         # Actualizar info básica si ha cambiado
         cursor.execute(
             "UPDATE users SET username = ?, first_name = ?, last_name = ?, language_code = ? WHERE user_id = ?",
@@ -537,15 +537,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Inicializar el cliente de OpenAI aquí para asegurar que se usa el thread_id correcto
     client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-    if not openai_thread_id:
+    if not thread_id:
         # Crear thread si no existe (primer inicio o reset)
         thread = client.beta.threads.create()
-        openai_thread_id = thread.id
-        cursor.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (openai_thread_id, user_id))
+        thread_id = thread.id
+        cursor.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (thread_id, user_id))
         conn.commit()
-        logging.info(f"Nuevo OpenAI thread creado para el usuario {user_id}: {openai_thread_id}")
+        logging.info(f"Nuevo OpenAI thread creado para el usuario {user_id}: {thread_id}")
 
-    context.user_data['openai_thread_id'] = openai_thread_id
+    context.user_data['openai_thread_id'] = thread_id
     context.user_data['openai_client'] = client
 
     conn.close()
@@ -584,7 +584,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 0. Comprobar si el usuario existe (por si acaso)
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT plan, daily_messages, openai_thread_id FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT plan, daily_messages, thread_id FROM users WHERE user_id = ?", (user_id,))
     user_data = cursor.fetchone()
 
     if not user_data:
@@ -592,7 +592,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
         return
     
-    current_plan, daily_messages, openai_thread_id = user_data
+    current_plan, daily_messages, thread_id_from_db = user_data
     plan_limit = SUBSCRIPTION_PLANS.get(current_plan.upper(), {}).get('daily_messages', 0)
 
     # 1. Verificar límite de mensajes
@@ -618,7 +618,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not client or not current_thread_id:
         logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id}. Reintentando desde la BD.")
         client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-        current_thread_id = openai_thread_id # Usar el de la BD que leímos antes
+        current_thread_id = thread_id_from_db # Usar el de la BD que leímos antes
         if not current_thread_id:
             # Si AÚN no hay thread_id (usuario nuevo o reset justo antes de este mensaje)
             logging.info(f"Creando nuevo thread para {user_id} dentro de handle_message.")
@@ -626,7 +626,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             current_thread_id = thread.id
             conn = get_db_connection() # Reabrir conexión
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
+            cursor.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
             conn.commit()
             conn.close()
         
@@ -720,7 +720,7 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Borrar el thread_id existente de la base de datos
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET openai_thread_id = NULL WHERE user_id = ?", (user_id,))
+    cursor.execute("UPDATE users SET thread_id = NULL WHERE user_id = ?", (user_id,))
     conn.commit()
     conn.close()
 
@@ -1203,12 +1203,12 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         logging.warning(f"Cliente OpenAI o thread_id no encontrados en context.user_data para {user_id} en explain_conv. Reintentando.")
         conn = get_db_connection() 
         cursor = conn.cursor()
-        cursor.execute("SELECT openai_thread_id FROM users WHERE user_id = ?", (user_id,))
+        cursor.execute("SELECT thread_id FROM users WHERE user_id = ?", (user_id,))
         db_thread_data = cursor.fetchone()
         conn.close()
         
         client = OpenAI(api_key=OPENAI_API_KEY, timeout=httpx.Timeout(60.0))
-        current_thread_id = db_thread_data[0] if db_thread_data else None
+        current_thread_id = db_thread_data[0] if db_thread_data and db_thread_data[0] else None
         
         if not current_thread_id:
             logging.info(f"Creando nuevo thread para {user_id} dentro de explain_target_received.")
@@ -1216,7 +1216,7 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
             current_thread_id = thread.id
             conn = get_db_connection() # Reabrir conexión
             cursor = conn.cursor()
-            cursor.execute("UPDATE users SET openai_thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
+            cursor.execute("UPDATE users SET thread_id = ? WHERE user_id = ?", (current_thread_id, user_id))
             conn.commit()
             conn.close()
             

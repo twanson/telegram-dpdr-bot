@@ -228,6 +228,7 @@ LOCALES = {
         'help_upgrade': "/upgrade - Show options to upgrade your plan 🌟",
         'help_reset': "/reset - Restart your conversation with the bot",
         'help_help': "/help - Show this list of commands",
+        'help_support': "/support - Contact support (if you need help)", # <-- Added missing key
         'help_cta': "\nYou can also ask me your question directly or select an option from /faq.",
         'plan_title': "📊 Your current plan:",
         'plan_messages_today': "✉️ Messages used today:",
@@ -1349,34 +1350,34 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Construir Bloque Inglés ---
     plan_info_expires_en = ""
     if current_plan.upper() != 'FREE':
-        plan_info_expires_en = get_text('plan_expires', 'en').format(expiry_date=expiry_date_formatted_en)
-        
+        plan_info_expires_en = get_text('plan_expires', 'en', default="📅 Your subscription expires on: {expiry_date}").format(expiry_date=expiry_date_formatted_en)
+
     block_en = (
-        f"{get_text('plan_title', 'en')}\n"
+        f"{get_text('plan_title', 'en', default='📊 Your current plan:')}\n"
         f"**{plan_name_en}**\n" 
-        f"{get_text('plan_messages_today', 'en')} {daily_messages}/{plan_limit}\n"
+        f"{get_text('plan_messages_today', 'en', default='✉️ Messages used today:')} {daily_messages}/{plan_limit}\n"
         f"{plan_info_expires_en}\n\n"
-        f"{get_text('plan_available_title', 'en')}\n"
-        f"{get_text('plan_free_desc', 'en').format(limit=free_limit)}\n"
-        f"{get_text('plan_basic_desc', 'en').format(limit=basic_limit, price=basic_price)}\n"
-        f"{get_text('plan_premium_desc', 'en').format(limit=premium_limit, price=premium_price)}"
+        f"{get_text('plan_available_title', 'en', default='💡 Available plans')}\n"
+        f"{get_text('plan_free_desc', 'en', default='*FREE:*\n- Basic free plan\n- {limit} messages/day').format(limit=free_limit)}\n"
+        f"{get_text('plan_basic_desc', 'en', default='*BASIC:*\n- For regular use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=basic_limit, price=basic_price)}\n"
+        f"{get_text('plan_premium_desc', 'en', default='*PREMIUM:*\n- For heavy use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=premium_limit, price=premium_price)}"
     )
     # --------------------------------
     
     # --- Construir Bloque Español ---
     plan_info_expires_es = ""
     if current_plan.upper() != 'FREE':
-        plan_info_expires_es = get_text('plan_expires', 'es').format(expiry_date=expiry_date_formatted_es)
+        plan_info_expires_es = get_text('plan_expires', 'es', default='📅 Tu suscripción vence el: {expiry_date}').format(expiry_date=expiry_date_formatted_es)
 
     block_es = (
-        f"{get_text('plan_title', 'es')}\n"
+        f"{get_text('plan_title', 'es', default='📊 Tu plan actual:')}\n"
         f"**{plan_name_es}**\n"
-        f"{get_text('plan_messages_today', 'es')} {daily_messages}/{plan_limit}\n"
+        f"{get_text('plan_messages_today', 'es', default='✉️ Mensajes usados hoy:')} {daily_messages}/{plan_limit}\n"
         f"{plan_info_expires_es}\n\n"
-        f"{get_text('plan_available_title', 'es')}\n"
-        f"{get_text('plan_free_desc', 'es').format(limit=free_limit)}\n"
-        f"{get_text('plan_basic_desc', 'es').format(limit=basic_limit, price=basic_price)}\n"
-        f"{get_text('plan_premium_desc', 'es').format(limit=premium_limit, price=premium_price)}"
+        f"{get_text('plan_available_title', 'es', default='💡 Planes disponibles')}\n"
+        f"{get_text('plan_free_desc', 'es', default='*GRATUITO:*\n- Plan básico gratuito\n- {limit} mensajes/día').format(limit=free_limit)}\n"
+        f"{get_text('plan_basic_desc', 'es', default='*BÁSICO:*\n- Para uso regular\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=basic_limit, price=basic_price)}\n"
+        f"{get_text('plan_premium_desc', 'es', default='*PREMIUM:*\n- Para uso intensivo\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=premium_limit, price=premium_price)}"
     )
     # --------------------------------
     

@@ -1040,35 +1040,67 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # No necesitamos cerrar la conexión aquí si la obtuvimos de get_db_connection y update_user_thread_id la maneja
     # conn.close() <-- Eliminar si get_db_connection y otras funciones manejan su conexión
 
-    # --- Modificación para añadir saltos de línea --- 
-    # Separar las claves en bloques
-    main_keys = [
-        'start_welcome_1',
-        'start_welcome_2',
-        'start_commands_title',
-        'start_faq',
-        'start_plan',
-        'start_upgrade',
-        'start_reset',
-        'start_help',
-        'manage_command_description',
-    ]
-    disclaimer_keys = [
-        'start_disclaimer_info',
-    ]
-    cta_keys = [
-        'start_cta'
-    ]
+    # --- Construcción del mensaje de /start con formato específico ---
+    # Bloque Inglés
+    msg_en_welcome1 = get_text('start_welcome_1', 'en')
+    msg_en_welcome2 = get_text('start_welcome_2', 'en')
+    msg_en_commands_title = get_text('start_commands_title', 'en')
+    msg_en_faq = get_text('start_faq', 'en')
+    msg_en_plan = get_text('start_plan', 'en')
+    msg_en_upgrade = get_text('start_upgrade', 'en')
+    msg_en_reset = get_text('start_reset', 'en')
+    msg_en_help = get_text('start_help', 'en')
+    msg_en_manage = get_text('manage_command_description', 'en')
+    msg_en_disclaimer = get_text('start_disclaimer_info', 'en')
+    msg_en_cta = get_text('start_cta', 'en')
 
-    # Crear bloques bilingües
-    main_block = create_bilingual_block(main_keys, join_char="\n", separator="\n\n---\n\n")
-    # Para líneas únicas, el separador bilingüe no es necesario si ambos idiomas son iguales
-    disclaimer_block = create_bilingual_block(disclaimer_keys, separator=" / ") # Usar separador simple para línea única
-    cta_block = create_bilingual_block(cta_keys, separator=" / ")
+    block_en = (
+        f"{msg_en_welcome1}\n"
+        f"{msg_en_welcome2}\n\n"
+        f"{msg_en_commands_title}\n"
+        f"{msg_en_faq}\n"
+        f"{msg_en_plan}\n"
+        f"{msg_en_upgrade}\n"
+        f"{msg_en_reset}\n"
+        f"{msg_en_help}\n"
+        f"{msg_en_manage}\n\n"
+        f"{msg_en_disclaimer}\n\n"
+        f"{msg_en_cta}"
+    )
+    
+    # Bloque Español
+    msg_es_welcome1 = get_text('start_welcome_1', 'es')
+    msg_es_welcome2 = get_text('start_welcome_2', 'es')
+    msg_es_commands_title = get_text('start_commands_title', 'es')
+    msg_es_faq = get_text('start_faq', 'es')
+    msg_es_plan = get_text('start_plan', 'es')
+    msg_es_upgrade = get_text('start_upgrade', 'es')
+    msg_es_reset = get_text('start_reset', 'es')
+    msg_es_help = get_text('start_help', 'es')
+    msg_es_manage = get_text('manage_command_description', 'es')
+    msg_es_disclaimer = get_text('start_disclaimer_info', 'es')
+    msg_es_cta = get_text('start_cta', 'es')
 
-    # Combinar con doble salto de línea antes del disclaimer y cta
-    full_message = f"{main_block}\n\n{disclaimer_block}\n\n{cta_block}"
-    # --- Fin Modificación ---
+    block_es = (
+        f"{msg_es_welcome1}\n"
+        f"{msg_es_welcome2}\n\n"
+        f"{msg_es_commands_title}\n"
+        f"{msg_es_faq}\n"
+        f"{msg_es_plan}\n"
+        f"{msg_es_upgrade}\n"
+        f"{msg_es_reset}\n"
+        f"{msg_es_help}\n"
+        f"{msg_es_manage}\n\n"
+        f"{msg_es_disclaimer}\n\n"
+        f"{msg_es_cta}"
+    )
+
+    # Combinar bloques
+    if block_en == block_es:
+        full_message = block_en
+    else:
+        full_message = f"{block_en}\n\n---\n\n{block_es}"
+    # --- Fin Construcción --- 
 
     await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
 
@@ -2227,10 +2259,18 @@ async def set_admin_status(target_user_id: int, status: bool) -> bool:
 
 async def disclaimer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el disclaimer del bot."""
-    # Enviar el disclaimer siempre en formato bilingüe
-    disclaimer_text = create_bilingual_block(['disclaimer_text'])
-    # Añadir parse_mode=ParseMode.MARKDOWN para que la negrita funcione
-    await update.message.reply_text(disclaimer_text, parse_mode=ParseMode.MARKDOWN)
+    # Obtener textos para ambos idiomas
+    text_en = get_text('disclaimer_text', 'en')
+    text_es = get_text('disclaimer_text', 'es')
+    
+    # Construir mensaje bilingüe manualmente
+    if text_en == text_es: # Fallback si español no existe
+        disclaimer_bilingual_text = text_en
+    else:
+        disclaimer_bilingual_text = f"{text_en}\n\n---\n\n{text_es}"
+        
+    # Enviar con parse_mode=ParseMode.MARKDOWN
+    await update.message.reply_text(disclaimer_bilingual_text, parse_mode=ParseMode.MARKDOWN)
 
 def main():
     logging.info("Starting bot...")

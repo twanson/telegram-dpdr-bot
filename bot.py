@@ -195,7 +195,13 @@ LOCALES = {
         'manage_portal_error': "Lo siento, hubo un error al generar el enlace a tu portal de gestión. Por favor, inténtalo de nuevo más tarde o contacta con soporte.",
         # Disclaimer
         'disclaimer_text': """⚠️ Aviso legal:
-Este bot tiene fines exclusivamente informativos y educativos. No sustituye el diagnóstico, tratamiento o asesoramiento médico profesional. Si experimentas síntomas importantes o necesitas ayuda profesional, consulta a un profesional de la salud autorizado.
+
+Este bot tiene fines exclusivamente informativos y educativos.
+
+**No sustituye el diagnóstico, tratamiento o asesoramiento médico profesional.**
+
+Si experimentas síntomas importantes o necesitas ayuda profesional, consulta a un profesional de la salud autorizado.
+
 Al utilizar este bot, reconoces y aceptas estos términos.""",
         'start_disclaimer_info': "Usa /disclaimer para ver información importante sobre el uso del bot."
     },
@@ -303,7 +309,13 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
         'manage_portal_error': "Sorry, there was an error generating the link to your management portal. Please try again later or contact support.",
         # Disclaimer
         'disclaimer_text': """⚠️ Disclaimer:
-This bot is intended for informational and educational purposes only. It is not a substitute for professional diagnosis, treatment, or medical advice. If you are experiencing significant symptoms or require professional help, please consult a licensed healthcare provider.
+
+This bot is intended for informational and educational purposes only.
+
+**It is not a substitute for professional diagnosis, treatment, or medical advice.**
+
+If you are experiencing significant symptoms or require professional help, please consult a licensed healthcare provider.
+
 By using this bot, you acknowledge and accept these terms.""",
         'start_disclaimer_info': "Use /disclaimer to view important information about the bot's usage."
     }

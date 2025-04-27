@@ -1566,7 +1566,8 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Pasar limit y price al formatear
         f"{get_text('plan_free_desc', 'es', default='*GRATUITO:*\n- Plan básico gratuito\n- {limit} mensajes/día').format(limit=free_limit)}\n"
         f"{get_text('plan_basic_desc', 'es', default='*BÁSICO:*\n- Para uso regular\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=basic_limit, price=basic_price)}\n"
-        f"{get_text('plan_premium_desc', 'es', default='*PREMIUM:*\n- Para uso intensivo\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=premium_limit, price=premium_price)}"
+        f"{get_text('plan_premium_desc', 'es', default='*PREMIUM:*\n- Para uso intensivo\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=premium_limit, price=premium_price)}\n"
+        f"{get_text('plan_gold_desc', 'es', default='*GOLD:*\n- Uso avanzado y soporte prioritario\n- {limit} mensajes/día\n- Precio: {price}€/mes').format(limit=gold_limit, price=gold_price)}" # <-- Añadido Gold
     )
     # --------------------------------
     

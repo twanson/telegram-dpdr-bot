@@ -181,7 +181,7 @@ LOCALES = {
         'error_stripe_ids_missing': "Lo siento, la opción de mejora de plan no está configurada correctamente.",
         # Explain Conversation
         'processing_request': "🧠 Procesando tu solicitud... Por favor, espera un momento.", # <-- Añadido
-        'consulting_knowledge_base': "Consultando la base de conocimiento... 🧠 Por favor, espera unos momentos mientras preparo tu respuesta.", # <-- Añadido
+        'consulting_knowledge_base': "Estoy consultando mis conocimientos y pensando en la mejor respuesta para ti 🧠. Un momento, por favor…", # <-- Mejorado v2
         'upgrade_desktop_copy_notice': "\n\n*Nota para usuarios de Escritorio:* Si el botón no abre el enlace directamente, por favor, copia la URL del botón (clic derecho > Copiar enlace) y pégala en tu navegador.", # <-- Añadido
         # Nombres de Planes
         'plan_free_name': "Gratuito",
@@ -284,7 +284,7 @@ LOCALES = {
         'error_stripe_session': "Sorry, there was an error generating the payment link. Please try again later.",
         'error_stripe_specific': "Payment Error: {error}", # <-- Added
         'processing_request': "🧠 Processing your request... Please wait a moment.", # <-- Added
-        'consulting_knowledge_base': "Consulting the knowledge base... 🧠 Please wait a few moments while I prepare your answer.", # <-- Added
+        'consulting_knowledge_base': "I'm consulting my knowledge base and thinking about the best answer for you 🧠. One moment, please…", # <-- Mejorado v2
         'upgrade_desktop_copy_notice': "\n\n*Note for Desktop users:* If the button doesn't open the link directly, please copy the button's URL (right-click > Copy link) and paste it into your browser.", # <-- Added
         # Plan Names
         'plan_free_name': "Free",

@@ -193,6 +193,11 @@ LOCALES = {
         'manage_generating_portal': "Generando enlace a tu portal de gestión...",
         'manage_portal_link_message': "Haz clic aquí para gestionar tu suscripción (cancelar, actualizar pago, etc.):",
         'manage_portal_error': "Lo siento, hubo un error al generar el enlace a tu portal de gestión. Por favor, inténtalo de nuevo más tarde o contacta con soporte.",
+        # Disclaimer
+        'disclaimer_text': """⚠️ Aviso legal:
+Este bot tiene fines exclusivamente informativos y educativos. No sustituye el diagnóstico, tratamiento o asesoramiento médico profesional. Si experimentas síntomas importantes o necesitas ayuda profesional, consulta a un profesional de la salud autorizado.
+Al utilizar este bot, reconoces y aceptas estos términos.""",
+        'start_disclaimer_info': "Usa /disclaimer para ver información importante sobre el uso del bot."
     },
     'en': {
         # FAQ Buttons
@@ -296,6 +301,11 @@ LOCALES = {
         'manage_generating_portal': "Generating link to your management portal...",
         'manage_portal_link_message': "Click here to manage your subscription (cancel, update payment, etc.):",
         'manage_portal_error': "Sorry, there was an error generating the link to your management portal. Please try again later or contact support.",
+        # Disclaimer
+        'disclaimer_text': """⚠️ Disclaimer:
+This bot is intended for informational and educational purposes only. It is not a substitute for professional diagnosis, treatment, or medical advice. If you are experiencing significant symptoms or require professional help, please consult a licensed healthcare provider.
+By using this bot, you acknowledge and accept these terms.""",
+        'start_disclaimer_info': "Use /disclaimer to view important information about the bot's usage."
     }
 }
 
@@ -1029,6 +1039,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'start_reset',
         'start_help',
         'manage_command_description', # <-- Añadir /manage
+        'start_disclaimer_info', # <-- Añadido aviso disclaimer
         'start_cta'
     ]
 
@@ -2194,6 +2205,12 @@ async def set_admin_status(target_user_id: int, status: bool) -> bool:
             conn.close()
 # --- Fin Funciones Auxiliares Admin ---
 
+async def disclaimer_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el disclaimer del bot."""
+    # Enviar el disclaimer siempre en formato bilingüe
+    disclaimer_text = create_bilingual_block(['disclaimer_text'])
+    await update.message.reply_text(disclaimer_text)
+
 def main():
     logging.info("Starting bot...")
     verify_env_variables()
@@ -2246,7 +2263,8 @@ def main():
         application.add_handler(CommandHandler("faq", faq_command))
         application.add_handler(CommandHandler("plan", plan_command))
         application.add_handler(CommandHandler("upgrade", upgrade_command))
-        application.add_handler(CommandHandler("manage", manage_command)) # <-- Añadir handler /manage
+        application.add_handler(CommandHandler("manage", manage_command))
+        application.add_handler(CommandHandler("disclaimer", disclaimer_command)) # <-- Añadido handler /disclaimer
         
         # Añadir PRIMERO los ConversationHandlers
         application.add_handler(explain_conv_handler)

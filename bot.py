@@ -814,9 +814,6 @@ async def process_user_input(user_id: int, lang: str, message_text: str, context
     try:
         # 0. Usar get_user que maneja creación/actualización de contadores
         user_data = get_user(user_id)
-        # --- Log Temporal de Idioma ---
-        logging.info(f"[DEBUG] Detected language code for user {user_id}: {lang}")
-        # --- Fin Log Temporal ---
         if not user_data:
             user_context['is_processing'] = False # Desbloquear en caso de error temprano
             await update.message.reply_text(get_text('error_no_user_data', lang))

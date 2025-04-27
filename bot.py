@@ -46,6 +46,7 @@ DB_PATH = '/data/dpdr_bot.db' # <-- Añadido para usar el volumen persistente
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_PRICE_ID_BASIC = os.getenv('STRIPE_PRICE_ID_BASIC')
 STRIPE_PRICE_ID_PREMIUM = os.getenv('STRIPE_PRICE_ID_PREMIUM')
+STRIPE_PRICE_ID_GOLD = os.getenv('STRIPE_PRICE_ID_GOLD') # <-- Leer nuevo ID
 YOUR_DOMAIN = os.getenv('YOUR_DOMAIN', 'http://localhost:8080') # Dominio base
 
 # Lista de IDs de administradores
@@ -144,6 +145,11 @@ LOCALES = {
 - Para uso intensivo
 - {limit} mensajes/día
 - Precio: {price}€/mes""",
+        'plan_gold_desc': """*GOLD:*
+- Uso avanzado y soporte prioritario
+- {limit} mensajes/día
+- Precio: {price}€/mes""", # <-- Añadido
+        'plan_gold_name': "Gold", # <-- Añadido
         'plan_upgrade_cta_free': "🌟 Usa /upgrade para mejorar tu plan y obtener más mensajes diarios.",
         'plan_upgrade_cta_paid': "🌟 Puedes usar /upgrade si deseas cambiar tu plan.",
         'limit_reached_1': "Has alcanzado tu límite diario de mensajes. 🚫",
@@ -177,6 +183,7 @@ LOCALES = {
         'upgrade_title': "Selecciona el plan al que quieres actualizar:",
         'upgrade_basic_desc': "💎 **Plan Basic ({basic_price}€/mes):**\n- {basic_limit} mensajes/día",
         'upgrade_premium_desc': "👑 **Plan Premium ({premium_price}€/mes):**\n- {premium_limit} mensajes/día",
+        'upgrade_gold_desc': "🌟 **Plan Gold ({gold_price}€/mes):**\n- {gold_limit} mensajes/día", # <-- Añadido
         'upgrade_footer': "*Serás redirigido a Stripe para completar el pago seguro.*",
         'error_stripe_ids_missing': "Lo siento, la opción de mejora de plan no está configurada correctamente.",
         # Explain Conversation
@@ -187,6 +194,7 @@ LOCALES = {
         'plan_free_name': "Gratuito",
         'plan_basic_name': "Básico",
         'plan_premium_name': "Premium",
+        'plan_gold_name': "Gold", # <-- Añadido
         # Manage Subscription / Portal
         'manage_command_description': "/manage - Gestiona tu suscripción activa",
         'manage_no_subscription': "No parece que tengas una suscripción activa para gestionar. Puedes empezar una con /upgrade.",
@@ -262,6 +270,7 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
 - For heavy use
 - {limit} messages/day
 - Price: €{price}/month""",
+        'plan_gold_name': "Gold", # <-- Añadido
         'plan_upgrade_cta_free': "🌟 Use /upgrade to improve your plan and get more daily messages.",
         'plan_upgrade_cta_paid': "🌟 You can use /upgrade if you wish to change your plan.",
         'limit_reached_1': "You have reached your daily message limit. 🚫",
@@ -283,6 +292,7 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
         'upgrade_generating_link': "Generating secure payment link...", # <-- Added missing key
         'upgrade_basic_desc': "💎 **Basic Plan (€{basic_price}/month):**\n- {basic_limit} messages/day", # <-- Placeholder changed
         'upgrade_premium_desc': "👑 **Premium Plan (€{premium_price}/month):**\n- {premium_limit} messages/day", # <-- Placeholder changed
+        'upgrade_gold_desc': "🌟 **Gold Plan (€{gold_price}/month):**\n- {gold_limit} messages/day", # <-- Añadido
         'upgrade_footer': "*You will be redirected to Stripe to complete the secure payment.*",
         'error_stripe_ids_missing': "Sorry, the plan upgrade option is not configured correctly.",
         # Explain Conversation
@@ -301,6 +311,7 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
         'plan_free_name': "Free",
         'plan_basic_name': "Basic",
         'plan_premium_name': "Premium",
+        'plan_gold_name': "Gold", # <-- Añadido
         # Manage Subscription / Portal
         'manage_command_description': "/manage - Manage your active subscription",
         'manage_no_subscription': "It doesn't seem like you have an active subscription to manage. You can start one with /upgrade.",
@@ -414,6 +425,12 @@ SUBSCRIPTION_PLANS = {
         "daily_messages": 20,
         "tokens_per_day": 10000,
         "price": 4.99
+    },
+    "GOLD": {
+        "name": "Plan Gold",
+        "daily_messages": 50,
+        "tokens_per_day": 25000, # Estimación, ajustar si es necesario
+        "price": 9.99
     }
 }
 
@@ -1228,22 +1245,26 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Usar constantes para los Price IDs --- 
     basic_price_id = os.getenv('STRIPE_PRICE_ID_BASIC')
     premium_price_id = os.getenv('STRIPE_PRICE_ID_PREMIUM')
+    gold_price_id = os.getenv('STRIPE_PRICE_ID_GOLD') # <-- Leer nuevo ID
     # ----------------------------------------
 
-    if not basic_price_id or not premium_price_id:
-        # Error bilingüe
+    # Verificar que todos los IDs necesarios existen
+    if not basic_price_id or not premium_price_id or not gold_price_id:
         error_msg = create_bilingual_block(['error_stripe_ids_missing'])
         await update.message.reply_text(error_msg)
-        logging.error("IDs de precios de Stripe (BASIC o PREMIUM) no configurados en variables de entorno.")
+        logging.error("IDs de precios de Stripe (BASIC, PREMIUM o GOLD) no configurados en variables de entorno.")
         return
 
     # --- Obtener precios y límites desde SUBSCRIPTION_PLANS --- 
     basic_plan = SUBSCRIPTION_PLANS.get('BASIC', {})
     premium_plan = SUBSCRIPTION_PLANS.get('PREMIUM', {})
+    gold_plan = SUBSCRIPTION_PLANS.get('GOLD', {}) # <-- Obtener datos Gold
     basic_price = basic_plan.get('price', 'N/A')
     premium_price = premium_plan.get('price', 'N/A')
+    gold_price = gold_plan.get('price', 'N/A') # <-- Obtener precio Gold
     basic_limit = basic_plan.get('daily_messages', 'N/A')
     premium_limit = premium_plan.get('daily_messages', 'N/A')
+    gold_limit = gold_plan.get('daily_messages', 'N/A') # <-- Obtener límite Gold
     # ------------------------------------------------------
     
     # --- Botones Inline (texto bilingüe manual) ---
@@ -1253,6 +1274,9 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
         [
             InlineKeyboardButton(f"👑 Premium ({premium_price}€/mes) / Premium (€{premium_price}/month)", callback_data=f"upgrade_premium_{premium_price_id}"),
+        ],
+        [
+            InlineKeyboardButton(f"🌟 Gold ({gold_price}€/mes) / Gold (€{gold_price}/month)", callback_data=f"upgrade_gold_{gold_price_id}"),
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1263,6 +1287,7 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'upgrade_title',
         'upgrade_basic_desc',
         'upgrade_premium_desc',
+        'upgrade_gold_desc', # <-- Añadido
         'upgrade_footer'
     ]
     
@@ -1271,7 +1296,9 @@ async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'basic_price': basic_price,
         'basic_limit': basic_limit,
         'premium_price': premium_price,
-        'premium_limit': premium_limit
+        'premium_limit': premium_limit,
+        'gold_price': gold_price,
+        'gold_limit': gold_limit
     }
     
     message_text = create_bilingual_block(upgrade_text_keys, 
@@ -1498,8 +1525,10 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     free_limit = SUBSCRIPTION_PLANS.get('FREE', {}).get('daily_messages', 0)
     basic_limit = SUBSCRIPTION_PLANS.get('BASIC', {}).get('daily_messages', 0)
     premium_limit = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('daily_messages', 0)
+    gold_limit = SUBSCRIPTION_PLANS.get('GOLD', {}).get('daily_messages', 0) # <-- Obtener límite Gold
     basic_price = SUBSCRIPTION_PLANS.get('BASIC', {}).get('price', 'N/A')
     premium_price = SUBSCRIPTION_PLANS.get('PREMIUM', {}).get('price', 'N/A')
+    gold_price = SUBSCRIPTION_PLANS.get('GOLD', {}).get('price', 'N/A') # <-- Obtener precio Gold
     # --------------------------------
 
     # --- Construir Bloque Inglés ---
@@ -1517,7 +1546,8 @@ async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Pasar limit y price al formatear
         f"{get_text('plan_free_desc', 'en', default='*FREE:*\n- Basic free plan\n- {limit} messages/day').format(limit=free_limit)}\n"
         f"{get_text('plan_basic_desc', 'en', default='*BASIC:*\n- For regular use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=basic_limit, price=basic_price)}\n"
-        f"{get_text('plan_premium_desc', 'en', default='*PREMIUM:*\n- For heavy use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=premium_limit, price=premium_price)}"
+        f"{get_text('plan_premium_desc', 'en', default='*PREMIUM:*\n- For heavy use\n- {limit} messages/day\n- Price: €{price}/month').format(limit=premium_limit, price=premium_price)}\n"
+        f"{get_text('plan_gold_desc', 'en', default='*GOLD:*\n- Advanced use and priority support\n- {limit} messages/day\n- Price: €{price}/month').format(limit=gold_limit, price=gold_price)}" # <-- Añadido Gold
     )
     # --------------------------------
     

@@ -1040,8 +1040,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # No necesitamos cerrar la conexión aquí si la obtuvimos de get_db_connection y update_user_thread_id la maneja
     # conn.close() <-- Eliminar si get_db_connection y otras funciones manejan su conexión
 
-    # Enviar mensaje de bienvenida usando la nueva función auxiliar
-    start_message_keys = [
+    # --- Modificación para añadir saltos de línea --- 
+    # Separar las claves en bloques
+    main_keys = [
         'start_welcome_1',
         'start_welcome_2',
         'start_commands_title',
@@ -1050,17 +1051,24 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'start_upgrade',
         'start_reset',
         'start_help',
-        'manage_command_description', # <-- Añadir /manage
-        'start_disclaimer_info', # <-- Añadido aviso disclaimer
+        'manage_command_description',
+    ]
+    disclaimer_keys = [
+        'start_disclaimer_info',
+    ]
+    cta_keys = [
         'start_cta'
     ]
 
-    # Definir cómo se unen las líneas de comandos (con salto de línea)
-    # Los títulos y textos iniciales/finales ya tienen saltos implícitos o se unen con \n
-    # Construir el mensaje bilingüe completo
-    # Pasar lang es opcional aquí, ya que create_bilingual_block obtiene ambos idiomas
-    # Pero lo mantenemos por si get_text lo necesitara en el futuro.
-    full_message = create_bilingual_block(start_message_keys, join_char="\n", separator="\n\n---\n\n") 
+    # Crear bloques bilingües
+    main_block = create_bilingual_block(main_keys, join_char="\n", separator="\n\n---\n\n")
+    # Para líneas únicas, el separador bilingüe no es necesario si ambos idiomas son iguales
+    disclaimer_block = create_bilingual_block(disclaimer_keys, separator=" / ") # Usar separador simple para línea única
+    cta_block = create_bilingual_block(cta_keys, separator=" / ")
+
+    # Combinar con doble salto de línea antes del disclaimer y cta
+    full_message = f"{main_block}\n\n{disclaimer_block}\n\n{cta_block}"
+    # --- Fin Modificación ---
 
     await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
 
@@ -2221,7 +2229,8 @@ async def disclaimer_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """Muestra el disclaimer del bot."""
     # Enviar el disclaimer siempre en formato bilingüe
     disclaimer_text = create_bilingual_block(['disclaimer_text'])
-    await update.message.reply_text(disclaimer_text)
+    # Añadir parse_mode=ParseMode.MARKDOWN para que la negrita funcione
+    await update.message.reply_text(disclaimer_text, parse_mode=ParseMode.MARKDOWN)
 
 def main():
     logging.info("Starting bot...")

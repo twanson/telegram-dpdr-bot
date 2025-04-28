@@ -907,16 +907,18 @@ async def process_user_input(user_id: int, lang: str, message_text: str, context
         # -- Sub-Try para la interacción OpenAI específica --
         try:
             use_gpt4 = False
-            # TODO: Re-evaluar si necesitamos CHECK_CRITICAL_KEYWORDS globalmente
-            # if CHECK_CRITICAL_KEYWORDS: 
-            #     for keyword in CRITICAL_KEYWORDS:
-            #         if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
-            #             use_gpt4 = True
-            #             logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
-            #             break
+            # Re-activar comprobación de palabras clave si la variable global está activa
+            if CHECK_CRITICAL_KEYWORDS: 
+                for keyword in CRITICAL_KEYWORDS:
+                    # Usar re.IGNORECASE para que no distinga mayúsculas/minúsculas
+                    if re.search(r'\b' + re.escape(keyword) + r'\b', message_text, re.IGNORECASE):
+                        use_gpt4 = True
+                        logging.warning(f"Palabra clave crítica detectada del usuario {user_id}. Usando GPT-4o.")
+                        break
 
-            # TODO: Implementar selección de modelo (gpt-4o vs gpt-4o-mini)
-            # model_to_use = "gpt-4o" if use_gpt4 else "gpt-4o-mini"
+            # Definir el modelo a usar basado en la comprobación anterior
+            model_to_use = "gpt-4o" if use_gpt4 else "gpt-4o-mini"
+            logging.info(f"Modelo OpenAI seleccionado para user {user_id}: {model_to_use}") # Log del modelo seleccionado
 
             logging.info(f"Enviando mensaje del usuario {user_id} al thread {current_thread_id}: '{message_text[:50]}...'")
             client.beta.threads.messages.create(
@@ -943,7 +945,8 @@ async def process_user_input(user_id: int, lang: str, message_text: str, context
                 thread_id=current_thread_id,
                 assistant_id=ASSISTANT_ID,
                 instructions=final_instructions, # <-- Pasar instrucciones
-                # model=model_to_use 
+                model=model_to_use # <-- Usar la variable para seleccionar el modelo
+                # model="gpt-4o-mini" # <-- Eliminar hardcoded
             )
 
             run_id = run.id
@@ -1993,11 +1996,14 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
         use_gpt4 = False
         if CHECK_CRITICAL_KEYWORDS:
             for keyword in CRITICAL_KEYWORDS:
+                 # Usar re.IGNORECASE
                  if re.search(r'\b' + re.escape(keyword) + r'\b', user_topic, re.IGNORECASE):
                     use_gpt4 = True
                     logging.warning(f"Palabra clave crítica detectada en explicación ({user_topic}) por usuario {user_id}. Usando GPT-4o.")
                     break
-        # TODO: Implementar selección de modelo cuando esté listo
+        # Definir modelo a usar
+        model_to_use = "gpt-4o" if use_gpt4 else "gpt-4o-mini"
+        logging.info(f"Modelo OpenAI seleccionado para explicación de user {user_id}: {model_to_use}")
 
         # Enviar mensaje al hilo
         client.beta.threads.messages.create(
@@ -2008,10 +2014,11 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
 
         # Ejecutar asistente
         run = client.beta.threads.runs.create(
-            thread_id=current_thread_id, 
-            assistant_id=ASSISTANT_ID, 
-            instructions=final_instructions # <-- Asegurarse de pasarla
-            # model=... # Añadir selección de modelo aquí
+            thread_id=current_thread_id,
+            assistant_id=ASSISTANT_ID,
+            instructions=final_instructions, # <-- Asegurarse de pasarla
+            model=model_to_use # <-- Usar la variable para seleccionar el modelo
+            # model="gpt-4o-mini" # <-- Eliminar hardcoded
         )
 
         # Esperar finalización

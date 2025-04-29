@@ -2405,27 +2405,36 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    # --- Limpieza puntual de Customer ID --- 
+    # --- Actualización puntual de Customer ID REAL para admin ---
     try:
-        logging.info("Iniciando limpieza puntual de Customer ID de prueba...")
-        conn_clean = sqlite3.connect(DB_PATH) 
-        cursor_clean = conn_clean.cursor()
-        target_user_id = 23684095
-        # Ejecutar la actualización para poner NULL el customer ID
-        cursor_clean.execute("UPDATE users SET stripe_customer_id = NULL WHERE user_id = ?", (target_user_id,))
-        conn_clean.commit()
-        # Verificar si se actualizó alguna fila
-        if cursor_clean.rowcount > 0:
-            logging.info(f"Customer ID limpiado exitosamente para usuario {target_user_id}.")
+        logging.info("Iniciando actualización puntual de Customer ID REAL para usuario admin...")
+        conn_update = sqlite3.connect(DB_PATH)
+        cursor_update = conn_update.cursor()
+        admin_user_id = 23684095
+        real_customer_id = "cus_SCTQoX59kjpuJe" # <-- ID REAL del admin
+        
+        # Ejecutar la actualización para establecer el customer ID real
+        cursor_update.execute("UPDATE users SET stripe_customer_id = ? WHERE user_id = ?", (real_customer_id, admin_user_id))
+        conn_update.commit()
+        
+        # Verificar si se actualizó
+        if cursor_update.rowcount > 0:
+            logging.info(f"Customer ID REAL '{real_customer_id}' establecido exitosamente para usuario {admin_user_id}.")
         else:
-             logging.warning(f"No se encontró al usuario {target_user_id} o su Customer ID ya era NULL.")
-        conn_clean.close()
-        logging.info("Limpieza puntual completada.")
-    except sqlite3.Error as e_clean_sql:
-        logging.error(f"Error SQL durante la limpieza puntual del Customer ID: {e_clean_sql}")
-    except Exception as e_clean_gen:
-        logging.error(f"Error general durante la limpieza puntual: {e_clean_gen}")
-    # --- Fin limpieza puntual ---
+            logging.warning(f"No se encontró al usuario {admin_user_id} para actualizar su Customer ID REAL.")
+        conn_update.close()
+        logging.info("Actualización puntual de Customer ID REAL completada.")
+        
+        # --- Eliminar bloque de limpieza de prueba si todavía existe ---
+        # (Código de limpieza anterior - ya no es necesario y se puede comentar/eliminar en el futuro)
+        # logging.info("Saltando limpieza puntual de Customer ID de prueba (ya no necesaria).")
+        # --- Fin eliminación bloque limpieza ---
+        
+    except sqlite3.Error as e_update_sql:
+        logging.error(f"Error SQL durante la actualización puntual del Customer ID REAL: {e_update_sql}")
+    except Exception as e_update_gen:
+        logging.error(f"Error general durante la actualización puntual del Customer ID REAL: {e_update_gen}")
+    # --- Fin actualización puntual ---
     
     # Continuar con el inicio normal del bot
     main()

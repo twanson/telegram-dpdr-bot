@@ -111,7 +111,7 @@ LOCALES = {
         'feedback_thanks_negative': "Gracias por tu feedback. Lo tendremos en cuenta para mejorar. 👍",
         'feedback_thanks_generic': "Gracias por tu feedback.", 
         # Comandos
-        'start_welcome_1': "¡Hola! Soy un asistente especializado en los síntomas de la ansiedad DPDR (despersonalización y desrealización).",
+        'start_welcome_1': "¡Hola! Soy un guía especializado en la ansiedad y especialmente en sus síntomas DPDR (despersonalización y desrealización).",
         'start_welcome_2': "Puedo ayudarte con información y consejos basados en guías y recursos especializados.",
         'start_commands_title': "📌 **Comandos disponibles:**",
         'start_faq': "/faq - Ver categorías principales",

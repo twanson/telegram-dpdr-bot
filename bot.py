@@ -2405,4 +2405,27 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    # --- Limpieza puntual de Customer ID --- 
+    try:
+        logging.info("Iniciando limpieza puntual de Customer ID de prueba...")
+        conn_clean = sqlite3.connect(DB_PATH) 
+        cursor_clean = conn_clean.cursor()
+        target_user_id = 23684095
+        # Ejecutar la actualización para poner NULL el customer ID
+        cursor_clean.execute("UPDATE users SET stripe_customer_id = NULL WHERE user_id = ?", (target_user_id,))
+        conn_clean.commit()
+        # Verificar si se actualizó alguna fila
+        if cursor_clean.rowcount > 0:
+            logging.info(f"Customer ID limpiado exitosamente para usuario {target_user_id}.")
+        else:
+             logging.warning(f"No se encontró al usuario {target_user_id} o su Customer ID ya era NULL.")
+        conn_clean.close()
+        logging.info("Limpieza puntual completada.")
+    except sqlite3.Error as e_clean_sql:
+        logging.error(f"Error SQL durante la limpieza puntual del Customer ID: {e_clean_sql}")
+    except Exception as e_clean_gen:
+        logging.error(f"Error general durante la limpieza puntual: {e_clean_gen}")
+    # --- Fin limpieza puntual ---
+    
+    # Continuar con el inicio normal del bot
     main()

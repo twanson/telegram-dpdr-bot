@@ -237,7 +237,7 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
         'feedback_thanks_negative': "Thanks for your feedback. We'll take it into account to improve. 👍",
         'feedback_thanks_generic': "Thanks for your feedback.",
         # Commands
-        'start_welcome_1': "Hi! I'm an assistant specializing in the symptoms of DPDR anxiety (depersonalization and derealization).",
+        'start_welcome_1': "Hi! I'm a guide specializing in anxiety and especially in its DPDR symptoms (depersonalization and derealization).",
         'start_welcome_2': "I can help you with information and advice based on specialized guides and resources.",
         'start_commands_title': "📌 **Available commands:**",
         'start_faq': "/faq - View main categories",

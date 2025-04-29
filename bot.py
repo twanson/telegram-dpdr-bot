@@ -2404,41 +2404,7 @@ def main():
         sys.exit(1)
 
 if __name__ == "__main__":
-    # --- Actualización puntual de Customer ID REAL para usuario específico (Reintento) ---
-    try:
-        logging.info("(Reintento) Iniciando actualización puntual de Customer ID REAL para usuario 316277167...")
-        conn_update = sqlite3.connect(DB_PATH)
-        cursor_update = conn_update.cursor()
-        target_user_id = 316277167
-        real_customer_id = "cus_SCXS7s5HlKXOft" # <-- ID REAL del usuario de la imagen
-        
-        # Ejecutar la actualización para establecer el customer ID real
-        cursor_update.execute("UPDATE users SET stripe_customer_id = ? WHERE user_id = ?", (real_customer_id, target_user_id))
-        conn_update.commit()
-        
-        # Verificar si se actualizó
-        if cursor_update.rowcount > 0:
-            logging.info(f"(Reintento) Customer ID REAL '{real_customer_id}' establecido exitosamente para usuario {target_user_id}.")
-        else:
-            # Si no se actualizó, intentar INSERTAR el usuario si no existe, o loguear si ya tenía el ID correcto
-            cursor_update.execute("SELECT stripe_customer_id FROM users WHERE user_id = ?", (target_user_id,))
-            existing_data = cursor_update.fetchone()
-            if existing_data and existing_data[0] == real_customer_id:
-                 logging.info(f"(Reintento) El usuario {target_user_id} ya tenía el Customer ID REAL correcto.")
-            elif not existing_data:
-                 logging.warning(f"(Reintento) No se encontró al usuario {target_user_id} para actualizar. Quizás no ha usado /start?")
-                 # Podríamos intentar insertar aquí si fuera necesario, pero es mejor que use /start
-            else:
-                 logging.warning(f"(Reintento) No se actualizó fila para {target_user_id}. ID existente: {existing_data[0]}")
-                 
-        conn_update.close()
-        logging.info("(Reintento) Actualización puntual de Customer ID REAL completada para usuario 316277167.")
-        
-    except sqlite3.Error as e_update_sql:
-        logging.error(f"(Reintento) Error SQL durante la actualización puntual del Customer ID REAL para 316277167: {e_update_sql}")
-    except Exception as e_update_gen:
-        logging.error(f"(Reintento) Error general durante la actualización puntual del Customer ID REAL para 316277167: {e_update_gen}")
-    # --- Fin actualización puntual ---
+    # El bloque "Actualización puntual (Reintento)" que estaba aquí se elimina.
     
     # Continuar con el inicio normal del bot
     main()

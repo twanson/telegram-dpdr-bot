@@ -1541,7 +1541,12 @@ async def faq_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         reply_markup = InlineKeyboardMarkup(keyboard)
         # -----------------------------
         # Usar edit_message_text para reemplazar el menú FAQ con la respuesta fija Y el botón
-        await query.edit_message_text(text=response_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await query.edit_message_text(
+            text=response_text, 
+            reply_markup=reply_markup, 
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True # <-- Added
+        )
     
     elif callback_data == 'faq_back_to_menu':
         # --- Volver a mostrar el menú FAQ inicial --- 
@@ -2371,17 +2376,17 @@ async def explain_target_received(update: Update, context: ContextTypes.DEFAULT_
             response_footer = get_text('explain_response_footer', lang, default="Espero que sea útil. ¿Puedo ayudarte con algo más?")
             
             full_response = f"{response_header}\n\n---\n{assistant_response}\n---\n\n{response_footer}"
-            await update.message.reply_text(full_response)
+            await update.message.reply_text(full_response, disable_web_page_preview=True) # <-- Added
 
         else:
             logging.error(f"La ejecución de explicación falló para {user_id} con estado: {run.status}")
             error_text = get_text('error_openai_run', lang, default="Lo siento, no pude generar la explicación en este momento.")
-            await update.message.reply_text(error_text)
+            await update.message.reply_text(error_text, disable_web_page_preview=True) # <-- Added
 
     except Exception as e:
         logging.error(f"Error inesperado al generar explicación para {user_id}: {e}", exc_info=True)
         error_message = get_text('error_generic', lang).format(error=str(e))
-        await update.message.reply_text(error_message)
+        await update.message.reply_text(error_message, disable_web_page_preview=True) # <-- Added
 
     return ConversationHandler.END
 

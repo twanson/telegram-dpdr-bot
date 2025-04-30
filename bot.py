@@ -1405,24 +1405,35 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = user.id
-    lang = user.language_code or 'en'
+    # Obtener lang de forma consistente
+    lang = context.user_data.get(user_id, {}).get('lang', update.effective_user.language_code or 'en')
     message_text = update.message.text
 
-    # --- Comprobar si el texto es un botón FAQ conocido --- 
-    faq_keys = ['faq_understand_dpdr', 'faq_general_anxiety', 'faq_symptoms', 
-                'faq_exercises', 'faq_explain_other', 'faq_resources']
-    is_faq_button = False
-    for key in faq_keys:
-        if message_text == get_text(key, lang):
-            is_faq_button = True
-            break
-    # -----------------------------------------------------
+    # --- Ignorar texto de botones de Feedback --- 
+    feedback_useful_text = get_text('feedback_useful', lang)
+    feedback_not_useful_text = get_text('feedback_not_useful', lang)
+    if message_text == feedback_useful_text or message_text == feedback_not_useful_text:
+        logging.info(f"Mensaje de texto ignorado (coincide con botón de feedback): '{message_text}' de {user_id}")
+        return # No procesar estos textos
+    # -------------------------------------------
+    
+    # --- Eliminar la lógica que interceptaba botones FAQ (ReplyKeyboard) ---
+    # faq_keys = ['faq_understand_dpdr', 'faq_general_anxiety', 'faq_symptoms', 
+    #             'faq_exercises', 'faq_explain_other', 'faq_resources']
+    # is_faq_button = False
+    # for key in faq_keys:
+    #     # Comprobar si el texto coincide con CUALQUIERA de los idiomas del botón (podría ser problemático)
+    #     if message_text == get_text(key, 'en') or message_text == get_text(key, 'es'):
+    #         is_faq_button = True
+    #         logging.warning(f"Texto de mensaje '{message_text}' de {user_id} coincide con botón FAQ (ReplyKeyboard?), será procesado por IA.")
+    #         # En teoría, esto ya no debería pasar si solo usamos InlineKeyboard
+    #         break
+    # -------------------------------------------------------------------
 
-    # Si NO es un botón FAQ, o si es CUALQUIER otro texto, procesarlo normalmente
-    # (La lógica de FAQ dentro de process_user_input ya no es necesaria si usamos este método)
+    # Procesar cualquier otro texto normalmente llamando a la IA
     await process_user_input(user.id, lang, message_text, context, update)
 
-    # Si es un botón de FAQ, podrías querer quitar el teclado después de procesar
+    # Ya no necesitamos quitar el teclado aquí
     # if is_faq_button:
     #    await update.message.reply_text(get_text('faq_response_loading', lang, default="Procesando tu selección..."), 
     #                                 reply_markup=ReplyKeyboardRemove())

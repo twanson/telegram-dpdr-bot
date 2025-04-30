@@ -89,13 +89,13 @@ NO_CITATION_INSTRUCTION = (
 LOCALES = {
     'es': {
         # FAQ Buttons
-        'faq_understand_dpdr': "Entender DPDR",
-        'faq_general_anxiety': "Ansiedad general",
-        'faq_symptoms': "Síntomas",
-        'faq_exercises': "Ejercicios",
-        'faq_explain_other': "Explicar a Otros",
-        'faq_resources': "Recursos",
-        # FAQ Descriptions
+        'faq_understand_dpdr': "🧠 Entender DPDR",
+        'faq_general_anxiety': "🌀 Ansiedad general",
+        'faq_symptoms': "🩺 Síntomas",
+        'faq_exercises': "🧘 Ejercicios",
+        'faq_explain_other': "🗣️ Explicar a Otros", # Emoji changed
+        'faq_resources': "📚 Recursos",
+        # FAQ Descriptions (Keep as is for now, could remove later if not needed)
         'faq_select_area': "Selecciona un área de interés:",
         'faq_area_understand': "🧠 **Entender DPDR:** Una explicación tranquilizadora sobre qué es y por qué ocurre.",
         'faq_area_anxiety': "🌀 **Ansiedad general:** Información sobre la ansiedad, sus mecanismos y cómo se manifiesta.",
@@ -103,9 +103,146 @@ LOCALES = {
         'faq_area_symptoms': "🩺 **Síntomas:** Un repaso a los síntomas comunes y qué pueden indicar.",
         'faq_area_exercises': "🧘 **Ejercicios:** Técnicas y ejercicios prácticos para manejar DPDR y ansiedad.",
         'faq_area_resources': "📚 **Recursos:** Enlaces, libros y otros materiales de apoyo.",
+        # Fixed FAQ Responses <-- NEW SECTION
+        'faq_response_understand_dpdr': """🧩 **Entender DPDR:**
+
+La despersonalización y la desrealización (DPDR) son experiencias extrañas pero inofensivas que muchas personas atraviesan, especialmente en momentos de mucho estrés emocional o psicológico. Son mecanismos de defensa del cerebro, una forma en que la mente trata de protegerte cuando se siente abrumada.
+
+*Despersonalización:* es la sensación de estar desconectado de ti mismo, como si observaras tus pensamientos, tu cuerpo o tus acciones desde afuera, como si fueras un espectador. Puedes sentirte entumecido o como un robot, como si no estuvieras realmente \"dentro\" de tu cuerpo.
+
+*Desrealización:* es la impresión de que el mundo que te rodea no es real, como si estuvieras en un sueño o viendo todo a través de un vidrio. Las cosas pueden parecer extrañas, planas o artificiales.
+
+Aunque estas sensaciones pueden ser muy incómodas y alarmantes, no son peligrosas, no indican que estés perdiendo la cordura, ni significan que haya algo roto en ti. De hecho, son reversibles cuando tu cuerpo y mente comienzan a sentirse seguros nuevamente.
+
+¿Te gustaría una versión más personal o fácil de identificar contigo? (Si es así, simplemente pídelo)""",
+        'faq_response_general_anxiety': """🌪️ **Ansiedad General:**
+
+La ansiedad general es una sensación constante de preocupación, nerviosismo o tensión, incluso cuando no hay un peligro real o inmediato. No es solo \"estar un poco estresado\", sino que puede sentirse como si algo malo fuera a pasar, aunque no sepas exactamente qué.
+
+En el **cuerpo**, la ansiedad puede causar cosas como palpitaciones, tensión muscular, dificultad para respirar, dolor en el pecho, o problemas para dormir. Todo esto ocurre porque el cuerpo entra en un estado de "alerta" como si tuviera que defenderse de un peligro, aunque en realidad no lo haya.
+
+En la **mente**, puede hacer que los pensamientos se vuelvan muy repetitivos o negativos. A veces te atrapas en un bucle de pensamientos difíciles, como "¿y si esto no mejora?" o "¿y si me pasa algo?". Esto puede hacer que te sientas desconectado, cansado o abrumado.
+
+La ansiedad se puede volver persistente porque el cuerpo y el cerebro aprenden a estar en ese estado de alerta todo el tiempo. A veces una situación estresante dispara la ansiedad, pero incluso después de que esa situación pasa, el sistema nervioso sigue funcionando como si todavía hubiera una amenaza. Es como si el "botón de alarma" se hubiera quedado atascado.
+
+Pero lo más importante: este estado se puede **reentrenar**. No estás roto. Con el enfoque adecuado, el cuerpo y la mente pueden volver a encontrar la calma.
+
+¿Hay alguna parte de esto sobre la que te gustaría saber más? (Si es así, simplemente pídelo)""",
+        'faq_response_symptoms': """🩺**Síntomas:**
+
+Aquí tienes una lista de los síntomas más comunes de la despersonalización/desrealización (DPDR) y la ansiedad, agrupados por tipo:
+
+🧠 **Síntomas Cognitivos (Mentales)**
+* Sensación de estar desconectado de uno mismo (como si te vieras desde fuera)
+* Percepción de que el mundo no es real, como si fuera un sueño, neblinoso o artificial
+* Pensamientos acelerados o excesivos
+* Dificultad para concentrarse o problemas de memoria ("mente nublada")
+* Miedo a "volverse loco" o perder el control
+* Pensamientos obsesivos sobre la existencia, la realidad o uno mismo
+* Sensación de confusión o estar mentalmente distante
+* pensar demasiado en tu estado también es parte de la ansiedad
+
+💬 **Síntomas Emocionales**
+* Entumecimiento emocional (sentirse plano o como un "robot")
+* Miedo constante o sensación de amenaza
+* Sentirse desconectado de personas cercanas
+* Sensación de desesperanza o tristeza
+* Irritabilidad o sensibilidad emocional
+* Cambios de humor o sensación de estar emocionalmente abrumado
+
+🧍‍♂️ **Síntomas Físicos**
+* Opresión en el pecho o dificultad para respirar
+* Palpitaciones o latidos rápidos
+* Tensión en cuello, hombros o mandíbula
+* Mareo o sensación de inestabilidad
+* Hormigueo o entumecimiento en manos, cara o cuerpo
+* Temblores o debilidad
+* Problemas digestivos (náuseas, hinchazón, retortijones)
+* Dificultad para dormir o sueño poco reparador
+* Sacudidas internas o sobresaltos al tratar de relajarse
+* Sensación de irrealidad al mirarse al espejo
+
+Si me cuentas qué síntomas tienes, puedo ayudarte a entender qué podrían significar.""",
+        'faq_response_exercises': """🧘 **Ejercicios:**
+
+Aquí tienes algunos ejercicios prácticos para ayudar a manejar la despersonalización y la ansiedad:
+
+1. **Meditación**: Practica meditación guiada regularmente. Puedes usar aplicaciones como Insight Timer o Calm.
+2. **CBT**: Usa un diario de pensamientos negativos para identificar y desafiar tus pensamientos negativos.
+3. **Ejercicios de relajación**: Practica técnicas de relajación como la respiración profunda o el yoga.
+4. **Ejercicios de mindfulness**: Establece un tiempo cada día para estar presente en el momento y observar tus pensamientos sin juzgarlos.
+5. **Ejercicios de autoconocimiento**: Escribe sobre tus emociones y pensamientos para entender mejor cómo te afectan.
+6. **Ejercicios de estrés**: Practica técnicas de reducción del estrés como el estiramiento o el masaje.
+7. **Ejercicios de relajación muscular**: Practica técnicas de relajación muscular para reducir la tensión.
+8. **Ejercicios de autocompasión**: Practica técnicas de autocompasión para sentirte mejor contigo mismo.
+9. **Ejercicios de empatía**: Practica técnicas de empatía para entender mejor a los demás.
+10. **Ejercicios de mindfulness**: Establece un tiempo cada día para estar presente en el momento y observar tus pensamientos sin juzgarlos.
+
+Estos ejercicios pueden ayudarte a reducir la despersonalización y la ansiedad, y a mejorar tu bienestar mental.""",
+        'faq_response_explain_other': """🗣️ **Explicar a Otros:**
+
+¿Quieres que lo adapte más a cómo tú lo vives? Puedo ayudarte con eso. (Si es así, pídelo)
+
+📚 **Recursos:**
+
+📚 **Libros**
+- *The Depersonalization Manual* – Shaun O'Connor
+- *Overcoming Depersonalization Disorder* – Fugen Neziroglu & Katharine Donnelly
+- *Feeling Unreal* – Daphne Simeon & Jeffrey Abugel
+- *Stop Unreality* – Kevin Klix
+- *The Body Keeps the Score* – Bessel van der Kolk (una visión basada en el trauma)
+
+🌐 **Webs y Recursos Online**
+- [**dpmanual.com**](https://www.dpmanual.com/) – Guía de recuperación de Shaun O'Connor
+- [**unrealuk.org**](https://www.unrealuk.org/) – ONG del Reino Unido enfocada en la DPDR
+- [**anxietycentre.com**](https://www.anxietycentre.com/) – Información y apoyo sobre trastornos de ansiedad
+- [**NAMI.org**](https://www.nami.org/) – Recursos de salud mental en general
+- [**YouTube: Jordan Hardgrave**](https://www.youtube.com/@JordanHardgrave) – Contenido educativo sobre trauma, DPDR y ansiedad
+
+💬 **Foros y Comunidades**
+- [**Reddit: r/DPDR**](https://www.reddit.com/r/DPDR/) – Apoyo entre personas con experiencias similares
+- [**No More DP**](https://www.nomoredp.com/) – Comunidad y herramientas desde la experiencia de recuperación
+- **HealthUnlocked: Anxiety Support** – Foros sobre ansiedad
+
+🧘‍♂️ **Apps y Herramientas**
+- **Insight Timer** – Meditaciones guiadas para anclaje y ansiedad
+- **CBT Thought Diary** – Diario basado en terapia cognitivo-conductual
+- **MindShift CBT** – App con herramientas para manejar la ansiedad
+- **DARE: Break Free from Anxiety** – Basada en el método DARE para responder a la ansiedad.
+
+🗣️ *Si necesitas recursos en un idioma específico, dime cuál y te ayudo a buscarlos.*""",
+        'faq_response_resources': """📚**Recursos:**
+
+📚 **Libros**
+- *The Depersonalization Manual* – Shaun O'Connor
+- *Overcoming Depersonalization Disorder* – Fugen Neziroglu & Katharine Donnelly
+- *Feeling Unreal* – Daphne Simeon & Jeffrey Abugel
+- *Stop Unreality* – Kevin Klix
+- *The Body Keeps the Score* – Bessel van der Kolk (trauma-informed perspective)
+
+🌐 **Websites & Online Resources**
+- [**dpmanual.com**](https://www.dpmanual.com/) – Shaun O'Connor's recovery guide
+- [**unrealuk.org**](https://www.unrealuk.org/) – UK charity focused on DPDR
+- [**anxietycentre.com**](https://www.anxietycentre.com/) – In-depth anxiety education and tools
+- [**NAMI.org**](https://www.nami.org/) – General mental health resources
+- [**YouTube: Jordan Hardgrave**](https://www.youtube.com/@JordanHardgrave) – Trauma and anxiety education
+
+💬 **Forums & Communities**
+- [**Reddit: r/DPDR**](https://www.reddit.com/r/DPDR/) – Peer support and shared experiences
+- [**No More DP**](https://www.nomoredp.com/) – Community and tools from a recovered DPDR sufferer
+- **HealthUnlocked: Anxiety Support** – Discussion forums
+
+🧘‍♂️ **Apps & Tools**
+- **Insight Timer** – Guided meditations for grounding and anxiety
+- **CBT Thought Diary** – Cognitive behavioral therapy journaling
+- **MindShift CBT** – Coping tools for anxiety
+- **DARE: Break Free from Anxiety** – Based on the DARE method
+
+🗣️ *If you'd like any of these resources in a specific language, let me know and I'll help you find them.*""",
+        'faq_back_button': "⬅️ Volver al menú FAQ", # <-- Added
         # Feedback
-        'feedback_useful': "👍 Útil", 
-        'feedback_not_useful': "👎 No útil", 
+        'feedback_useful': "👍 Útil",
+        'feedback_not_useful': "👎 No útil",
         'feedback_prompt': "¿Te ha resultado útil esta respuesta?",
         'feedback_thanks_positive': "¡Gracias por tu feedback positivo! 👍",
         'feedback_thanks_negative': "Gracias por tu feedback. Lo tendremos en cuenta para mejorar. 👍",
@@ -113,6 +250,7 @@ LOCALES = {
         # Comandos
         'start_welcome_1': "¡Hola! Soy un guía especializado en la ansiedad y especialmente en sus síntomas DPDR (despersonalización y desrealización).",
         'start_welcome_2': "Puedo ayudarte con información y consejos basados en guías y recursos especializados.",
+        'start_multilingual_info': "🌐 Puedo entender y responder en varios idiomas. Si prefieres otro idioma, simplemente escríbeme en él.", # <-- Added
         'start_commands_title': "📌 **Comandos disponibles:**",
         'start_faq': "/faq - Ver categorías principales",
         'start_plan': "/plan - Ver tu plan actual y límites",
@@ -215,13 +353,13 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
     },
     'en': {
         # FAQ Buttons
-        'faq_understand_dpdr': "Understand DPDR",
-        'faq_general_anxiety': "General Anxiety",
-        'faq_symptoms': "Symptoms",
-        'faq_exercises': "Exercises",
-        'faq_explain_other': "Explain to Others",
-        'faq_resources': "Resources",
-        # FAQ Descriptions
+        'faq_understand_dpdr': "🧠 Understand DPDR",
+        'faq_general_anxiety': "🌀 General Anxiety",
+        'faq_symptoms': "🩺 Symptoms",
+        'faq_exercises': "🧘 Exercises",
+        'faq_explain_other': "🗣️ Explain to Others", # Emoji changed
+        'faq_resources': "📚 Resources",
+        # FAQ Descriptions (Keep as is)
         'faq_select_area': "Select an area of interest:",
         'faq_area_understand': "🧠 **Understand DPDR:** A reassuring explanation of what it is and why it happens.",
         'faq_area_anxiety': "🌀 **General Anxiety:** Information about anxiety, its mechanisms, and how it manifests.",
@@ -229,6 +367,143 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
         'faq_area_symptoms': "🩺 **Symptoms:** A review of common symptoms and what they might indicate.",
         'faq_area_exercises': "🧘 **Exercises:** Practical techniques and exercises to manage DPDR and anxiety.",
         'faq_area_resources': "📚 **Resources:** Links, books, and other support materials.",
+         # Fixed FAQ Responses <-- NEW SECTION
+        'faq_response_understand_dpdr': """🧩 **Understand DPDR:**
+
+Depersonalization and derealization (DPDR) are unsettling but harmless experiences that many people go through, especially during periods of high emotional or psychological stress. They are defense mechanisms of the mind, designed to help you cope when stress becomes overwhelming.
+
+*Depersonalization* is the feeling of being detached from yourself—like you're observing your thoughts, body, or actions from the outside. You may feel numb or robotic, as if you're not really \"in\" your body.
+
+*Derealization*, on the other hand, is the sensation that the world around you is unreal—like you're in a dream or behind a glass wall. Things may look strange, distorted, or artificial.
+
+Though these experiences are deeply uncomfortable, they're actually quite common among people with anxiety or after intense stress or trauma. They're not dangerous, they're not signs of "going crazy," and they don't mean there's anything permanently wrong with you. In fact, they're reversible once the body and mind begin to feel safe again.
+
+Would you like a version that feels more personal or easier to relate to? (If so, just ask)""",
+        'faq_response_general_anxiety': """🌪️ **General Anxiety:**
+
+General anxiety is a constant feeling of worry, nervousness, or tension, even when there's no real or immediate danger. It's more than just "feeling stressed"—it can feel like something bad is about to happen, even if you don't know what exactly.
+
+In the **body**, anxiety can show up as a racing heart, tight muscles, shortness of breath, chest discomfort, or trouble sleeping. This happens because the body goes into a "high alert" mode, like it's preparing to protect you from danger—even when there is none.
+
+In the **mind**, anxiety can create repetitive or negative thoughts. You might find yourself stuck in a loop of "what ifs" like, "What if this never gets better?" or "What if something's wrong with me?" These thoughts can be exhausting and make you feel disconnected or overwhelmed.
+
+Anxiety can become **persistent** because the body and brain start to get used to being in that alert state. Sometimes a stressful experience starts it, but even after the situation is over, your nervous system can keep acting like there's still something to fear. It's like the "alarm button" got stuck in the ON position.
+
+The good news is: this state **can be changed**. You're not broken. With the right tools and support, your body and mind can return to a calmer, more balanced state.
+
+Is there a specific part you'd like to know more about? (If so, just ask)""",
+        'faq_response_symptoms': """🩺**Symptoms:**
+
+Here's a list of the most common DPDR (depersonalization and derealization) and anxiety symptoms, grouped by type:
+
+🧠 **Cognitive (Mental) Symptoms**
+* Feeling disconnected from yourself (like you're observing your life from outside your body)
+* Feeling like the world isn't real or looks "dreamlike," foggy, or artificial
+* Racing thoughts or overthinking
+* Difficulty concentrating or memory problems ("brain fog")
+* Fear of "going crazy" or losing control
+* Obsessive thinking about existence, reality, or the self
+* Feeling confused or mentally distant
+* thinking too much about your condition is also part of anxiety
+
+💬 **Emotional Symptoms**
+* Numbness or lack of emotions (feeling flat or "robotic")
+* Constant fear or dread
+* Feeling detached from loved ones
+* Sense of hopelessness or sadness
+* Irritability or emotional sensitivity
+* Mood swings or emotional overwhelm
+
+🧍‍♂️ **Physical Symptoms**
+* Tight chest or trouble breathing
+* Fast heartbeat or palpitations
+* Tension in the neck, shoulders, or jaw
+* Dizziness or lightheadedness
+* Tingling or numbness in hands, face, or body
+* Shakiness or feeling weak
+* Stomach issues (nausea, bloating, cramps)
+* Trouble sleeping or disturbed rest
+* Sudden "jolts" or internal "shocks" when trying to relax
+* Feeling unreal when looking in the mirror
+
+If you tell me your symptoms, I can help you understand what they might mean.""",
+        'faq_response_exercises': """🧘 **Exercises:**
+
+Here are some practical techniques and exercises to help manage DPDR and anxiety:
+
+1. **Mindfulness Meditation**: Regularly practice mindfulness meditation. Apps like Insight Timer or Calm can be helpful.
+2. **Cognitive Behavioral Therapy (CBT)**: Use a negative thought diary to identify and challenge negative thoughts.
+3. **Relaxation Techniques**: Practice relaxation techniques such as deep breathing or yoga.
+4. **Mindfulness Exercises**: Set aside time each day to be present and observe your thoughts without judgment.
+5. **Self-awareness Exercises**: Write about your emotions and thoughts to better understand how they affect you.
+6. **Stress Reduction Exercises**: Practice stress-reducing exercises like stretching or massage.
+7. **Muscle Relaxation Exercises**: Practice muscle relaxation techniques to reduce tension.
+8. **Self-compassion Exercises**: Practice self-compassion techniques to feel better about yourself.
+9. **Empathy Exercises**: Practice empathy techniques to better understand others.
+10. **Mindfulness Exercises**: Set aside time each day to be present and observe your thoughts without judgment.
+
+These exercises can help reduce DPDR and anxiety, and improve your overall mental well-being.""",
+        'faq_response_explain_other': """🗣️ **Explain to Others:**
+
+Want me to adjust it to match more closely how *you* experience it? I can help with that. (If so, just ask)
+
+📚 **Resources:**
+
+📚 **Books**
+- *The Depersonalization Manual* – Shaun O'Connor
+- *Overcoming Depersonalization Disorder* – Fugen Neziroglu & Katharine Donnelly
+- *Feeling Unreal* – Daphne Simeon & Jeffrey Abugel
+- *Stop Unreality* – Kevin Klix
+- *The Body Keeps the Score* – Bessel van der Kolk (trauma-informed perspective)
+
+🌐 **Websites & Online Resources**
+- [**dpmanual.com**](https://www.dpmanual.com/) – Shaun O'Connor's recovery guide
+- [**unrealuk.org**](https://www.unrealuk.org/) – UK charity focused on DPDR
+- [**anxietycentre.com**](https://www.anxietycentre.com/) – In-depth anxiety education and tools
+- [**NAMI.org**](https://www.nami.org/) – General mental health resources
+- [**YouTube: Jordan Hardgrave**](https://www.youtube.com/@JordanHardgrave) – Trauma and anxiety education
+
+💬 **Forums & Communities**
+- [**Reddit: r/DPDR**](https://www.reddit.com/r/DPDR/) – Peer support and shared experiences
+- [**No More DP**](https://www.nomoredp.com/) – Community and tools from a recovered DPDR sufferer
+- **HealthUnlocked: Anxiety Support** – Discussion forums
+
+🧘‍♂️ **Apps & Tools**
+- **Insight Timer** – Guided meditations for grounding and anxiety
+- **CBT Thought Diary** – Cognitive behavioral therapy journaling
+- **MindShift CBT** – Coping tools for anxiety
+- **DARE: Break Free from Anxiety** – Based on the DARE method
+
+🗣️ *If you'd like any of these resources in a specific language, let me know and I'll help you find them.*""",
+        'faq_response_resources': """📚**Resources:**
+
+📚 **Books**
+- *The Depersonalization Manual* – Shaun O'Connor
+- *Overcoming Depersonalization Disorder* – Fugen Neziroglu & Katharine Donnelly
+- *Feeling Unreal* – Daphne Simeon & Jeffrey Abugel
+- *Stop Unreality* – Kevin Klix
+- *The Body Keeps the Score* – Bessel van der Kolk (trauma-informed perspective)
+
+🌐 **Websites & Online Resources**
+- [**dpmanual.com**](https://www.dpmanual.com/) – Shaun O'Connor's recovery guide
+- [**unrealuk.org**](https://www.unrealuk.org/) – UK charity focused on DPDR
+- [**anxietycentre.com**](https://www.anxietycentre.com/) – In-depth anxiety education and tools
+- [**NAMI.org**](https://www.nami.org/) – General mental health resources
+- [**YouTube: Jordan Hardgrave**](https://www.youtube.com/@JordanHardgrave) – Trauma and anxiety education
+
+💬 **Forums & Communities**
+- [**Reddit: r/DPDR**](https://www.reddit.com/r/DPDR/) – Peer support and shared experiences
+- [**No More DP**](https://www.nomoredp.com/) – Community and tools from a recovered DPDR sufferer
+- **HealthUnlocked: Anxiety Support** – Discussion forums
+
+🧘‍♂️ **Apps & Tools**
+- **Insight Timer** – Guided meditations for grounding and anxiety
+- **CBT Thought Diary** – Cognitive behavioral therapy journaling
+- **MindShift CBT** – Coping tools for anxiety
+- **DARE: Break Free from Anxiety** – Based on the DARE method
+
+🗣️ *If you'd like any of these resources in a specific language, let me know and I'll help you find them.*""",
+        'faq_back_button': "⬅️ Back to FAQ Menu", # <-- Added
         # Feedback
         'feedback_useful': "👍 Useful",
         'feedback_not_useful': "👎 Not Useful",
@@ -239,6 +514,7 @@ Al utilizar este bot, reconoces y aceptas estos términos.""",
         # Commands
         'start_welcome_1': "Hi! I'm a guide specializing in anxiety and especially in its DPDR symptoms (depersonalization and derealization).",
         'start_welcome_2': "I can help you with information and advice based on specialized guides and resources.",
+        'start_multilingual_info': "🌐 I can understand and respond in multiple languages. If you prefer another language, just start writing in it.", # <-- Added
         'start_commands_title': "📌 **Available commands:**",
         'start_faq': "/faq - View main categories",
         'start_plan': "/plan - View your current plan and limits",
@@ -1062,6 +1338,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Bloque Inglés
     msg_en_welcome1 = get_text('start_welcome_1', 'en')
     msg_en_welcome2 = get_text('start_welcome_2', 'en')
+    msg_en_multilingual = get_text('start_multilingual_info', 'en') # <-- Get multilingual text
     msg_en_commands_title = get_text('start_commands_title', 'en')
     msg_en_faq = get_text('start_faq', 'en')
     msg_en_plan = get_text('start_plan', 'en')
@@ -1075,6 +1352,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     block_en = (
         f"{msg_en_welcome1}\n"
         f"{msg_en_welcome2}\n\n"
+        f"{msg_en_multilingual}\n\n"  # <-- Add multilingual text here
         f"{msg_en_commands_title}\n"
         f"{msg_en_faq}\n"
         f"{msg_en_plan}\n"
@@ -1089,6 +1367,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Bloque Español
     msg_es_welcome1 = get_text('start_welcome_1', 'es')
     msg_es_welcome2 = get_text('start_welcome_2', 'es')
+    msg_es_multilingual = get_text('start_multilingual_info', 'es') # <-- Get multilingual text
     msg_es_commands_title = get_text('start_commands_title', 'es')
     msg_es_faq = get_text('start_faq', 'es')
     msg_es_plan = get_text('start_plan', 'es')
@@ -1102,6 +1381,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     block_es = (
         f"{msg_es_welcome1}\n"
         f"{msg_es_welcome2}\n\n"
+        f"{msg_es_multilingual}\n\n"  # <-- Add multilingual text here
         f"{msg_es_commands_title}\n"
         f"{msg_es_faq}\n"
         f"{msg_es_plan}\n"
@@ -1161,7 +1441,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'start_reset',
         'start_help',
         'manage_command_description', # <-- Añadir /manage
-        'help_support' # Clave específica de help
+        'help_support', # Clave específica de help
+        'start_disclaimer_info' # <-- Added /disclaimer info
         # 'help_cta' # Decidimos si incluir la llamada a la acción aquí o no
     ]
 
@@ -1198,43 +1479,98 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Hubo un problema al intentar reiniciar tu conversación.")
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    lang = user.language_code or 'en'
+    user_id = update.effective_user.id
+    lang = context.user_data.get('lang', 'en') # Obtener idioma o default a 'en'
+    user_data = get_user(user_id)
 
-    # --- Botones (ahora bilingües usando create_bilingual_block) ---
-    # Usamos un separador simple para los botones
-    btn_separator = " / " 
+    if not user_data:
+        await update.message.reply_text(get_text('error_no_user_data', lang))
+        return
+
+    # Ya no necesitamos las descripciones aquí si los botones tienen emojis
+    # description_understand = get_text('faq_area_understand', lang)
+    # description_anxiety = get_text('faq_area_anxiety', lang)
+    # description_explain = get_text('faq_area_explain', lang)
+    # description_symptoms = get_text('faq_area_symptoms', lang)
+    # description_exercises = get_text('faq_area_exercises', lang)
+    # description_resources = get_text('faq_area_resources', lang)
+
     keyboard = [
-        [create_bilingual_block(['faq_understand_dpdr'], separator=btn_separator), 
-         create_bilingual_block(['faq_general_anxiety'], separator=btn_separator)],
-        [create_bilingual_block(['faq_symptoms'], separator=btn_separator), 
-         create_bilingual_block(['faq_exercises'], separator=btn_separator)],
-        [create_bilingual_block(['faq_explain_other'], separator=btn_separator), 
-         create_bilingual_block(['faq_resources'], separator=btn_separator)]
+        [InlineKeyboardButton(get_text('faq_understand_dpdr', lang), callback_data='faq_understand_dpdr')],
+        [InlineKeyboardButton(get_text('faq_general_anxiety', lang), callback_data='faq_general_anxiety')],
+        [InlineKeyboardButton(get_text('faq_symptoms', lang), callback_data='faq_symptoms')],
+        [InlineKeyboardButton(get_text('faq_exercises', lang), callback_data='faq_exercises')],
+        [InlineKeyboardButton(get_text('faq_explain_other', lang), callback_data='faq_explain_other')],
+        [InlineKeyboardButton(get_text('faq_resources', lang), callback_data='faq_resources')],
+        # Consider adding a button for general help or asking a question directly?
+        # [InlineKeyboardButton("❓ Ask my own question", callback_data='faq_ask_question')] # Example
     ]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
-    # ------------------------------------------------------
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # --- Texto descriptivo (bilingüe) ---
-    faq_description_keys = [
-        'faq_area_understand',
-        'faq_area_anxiety',
-        'faq_area_explain',
-        'faq_area_symptoms',
-        'faq_area_exercises',
-        'faq_area_resources',
-        # 'faq_select_area' # Añadimos esta clave al final
-    ]
-    # Construir bloque descriptivo bilingüe
-    faq_description_text = create_bilingual_block(faq_description_keys, join_char="\n", separator="\n\n---\n\n")
+    await update.message.reply_text(get_text('faq_select_area', lang), reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+
+# --- Callback Query Handler for FAQ Buttons ---
+async def faq_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer() # Important to answer the callback query
+
+    user_id = query.from_user.id
+    # Obtener lang de context.user_data o default a 'en' si no está.
+    # Esto es más robusto si el usuario cambia de idioma entre mensajes.
+    lang = context.user_data.get(user_id, {}).get('lang', update.effective_user.language_code or 'en')
+    callback_data = query.data
+
+    # --- Mapeo de callback_data a claves de texto fijo ---
+    fixed_responses = {
+        'faq_understand_dpdr': 'faq_response_understand_dpdr',
+        'faq_general_anxiety': 'faq_response_general_anxiety',
+        'faq_symptoms': 'faq_response_symptoms',
+        'faq_exercises': 'faq_response_exercises',
+        'faq_explain_other': 'faq_response_explain_other',
+        'faq_resources': 'faq_response_resources'
+    }
+    # -----------------------------------------------------
+
+    if callback_data in fixed_responses:
+        response_key = fixed_responses[callback_data]
+        response_text = get_text(response_key, lang)
+        # --- Añadir botón de Volver --- 
+        keyboard = [
+            [InlineKeyboardButton(get_text('faq_back_button', lang), callback_data='faq_back_to_menu')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        # -----------------------------
+        # Usar edit_message_text para reemplazar el menú FAQ con la respuesta fija Y el botón
+        await query.edit_message_text(text=response_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
     
-    # Añadir la selección final (quizás bilingüe también o solo en idioma usuario)
-    select_area_text = get_text('faq_select_area', lang) # O usar create_bilingual_block([aq_select_area']) si se quiere bilingüe
-    final_text = faq_description_text + "\n\n" + select_area_text
-    # ------------------------------------
+    elif callback_data == 'faq_back_to_menu':
+        # --- Volver a mostrar el menú FAQ inicial --- 
+        keyboard = [
+            [InlineKeyboardButton(get_text('faq_understand_dpdr', lang), callback_data='faq_understand_dpdr')],
+            [InlineKeyboardButton(get_text('faq_general_anxiety', lang), callback_data='faq_general_anxiety')],
+            [InlineKeyboardButton(get_text('faq_symptoms', lang), callback_data='faq_symptoms')],
+            [InlineKeyboardButton(get_text('faq_exercises', lang), callback_data='faq_exercises')],
+            [InlineKeyboardButton(get_text('faq_explain_other', lang), callback_data='faq_explain_other')],
+            [InlineKeyboardButton(get_text('faq_resources', lang), callback_data='faq_resources')]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await query.edit_message_text(get_text('faq_select_area', lang), reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        # ---------------------------------------------
 
-    # Enviar mensaje con texto descriptivo bilingüe y botones en idioma del usuario
-    await update.message.reply_text(final_text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    else:
+        # Si no es una respuesta fija ni el botón de volver, procesar como pregunta a la IA
+        button_text_key = callback_data 
+        question_text = get_text(button_text_key, lang).split(' ', 1)[1] # Quita emoji
+
+        if question_text: 
+            processing_message = get_text('consulting_knowledge_base', lang)
+            # Editamos el mensaje original para indicar que se está procesando
+            await query.edit_message_text(text=processing_message, parse_mode=ParseMode.MARKDOWN)
+            # Llamamos a process_user_input. Este se encargará de enviar la respuesta final.
+            # Es importante pasar 'update' para que process_user_input sepa si viene de un callback.
+            await process_user_input(user_id, lang, question_text, context, update)
+        else:
+            await query.edit_message_text(text=get_text('error_processing_selection', lang))
 
 async def upgrade_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra opciones para actualizar el plan con botones inline."""

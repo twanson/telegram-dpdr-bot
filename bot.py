@@ -2710,7 +2710,8 @@ def main():
         # -------------------------------------------
         
         # --- Añadir Handler para botones de FAQ ---
-        # application.add_handler(CallbackQueryHandler(faq_button_handler, pattern='^faq_')) 
+        # Asegurarse de que esta línea NO esté comentada
+        application.add_handler(CallbackQueryHandler(faq_callback_handler, pattern='^faq_')) 
         # ---------------------------------------
 
         # Handler general de mensajes (al final)

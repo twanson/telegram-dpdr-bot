@@ -181,36 +181,19 @@ Aquí tienes algunos ejercicios prácticos para ayudar a manejar la despersonali
 Estos ejercicios pueden ayudarte a reducir la despersonalización y la ansiedad, y a mejorar tu bienestar mental.""",
         'faq_response_explain_other': """🗣️ **Explicar a Otros:**
 
-¿Quieres que lo adapte más a cómo tú lo vives? Puedo ayudarte con eso. (Si es así, pídelo)
+Estoy atravesando algo llamado despersonalización y desrealización. A veces siento como si estuviera fuera de mi cuerpo o como si todo a mi alrededor no fuera real. Sé que suena raro, pero no es peligroso ni significa que me esté volviendo loco.
 
-📚 **Recursos:**
+Lo que pasa es que, cuando estamos muy estresados o ansiosos, el cerebro puede activar una especie de 'modo de emergencia'. Es una reacción automática y muy antigua del sistema nervioso, conocida como **respuesta de congelamiento** ('freeze' en inglés).
 
-📚 **Libros**
-- *The Depersonalization Manual* – Shaun O'Connor
-- *Overcoming Depersonalization Disorder* – Fugen Neziroglu & Katharine Donnelly
-- *Feeling Unreal* – Daphne Simeon & Jeffrey Abugel
-- *Stop Unreality* – Kevin Klix
-- *The Body Keeps the Score* – Bessel van der Kolk (una visión basada en el trauma)
+Esta respuesta viene de nuestros antepasados. Cuando un animal no podía ni huir ni luchar, su cuerpo se "apagaba" o se desconectaba para protegerse del dolor o del trauma. Es un mecanismo de defensa.
 
-🌐 **Webs y Recursos Online**
-- [**dpmanual.com**](https://www.dpmanual.com/) – Guía de recuperación de Shaun O'Connor
-- [**unrealuk.org**](https://www.unrealuk.org/) – ONG del Reino Unido enfocada en la DPDR
-- [**anxietycentre.com**](https://www.anxietycentre.com/) – Información y apoyo sobre trastornos de ansiedad
-- [**NAMI.org**](https://www.nami.org/) – Recursos de salud mental en general
-- [**YouTube: Jordan Hardgrave**](https://www.youtube.com/@JordanHardgrave) – Contenido educativo sobre trauma, DPDR y ansiedad
+En mi caso, aunque no haya un peligro real, mi sistema nervioso sigue respondiendo como si lo hubiera, y eso genera esta sensación tan extraña de desconexión.
 
-💬 **Foros y Comunidades**
-- [**Reddit: r/DPDR**](https://www.reddit.com/r/DPDR/) – Apoyo entre personas con experiencias similares
-- [**No More DP**](https://www.nomoredp.com/) – Comunidad y herramientas desde la experiencia de recuperación
-- **HealthUnlocked: Anxiety Support** – Foros sobre ansiedad
+La buena noticia es que esto se puede revertir. No es algo permanente. Con calma, comprensión y las herramientas adecuadas, el cuerpo y la mente pueden volver a sentirse seguros y presentes.
 
-🧘‍♂️ **Apps y Herramientas**
-- **Insight Timer** – Meditaciones guiadas para anclaje y ansiedad
-- **CBT Thought Diary** – Diario basado en terapia cognitivo-conductual
-- **MindShift CBT** – App con herramientas para manejar la ansiedad
-- **DARE: Break Free from Anxiety** – Basada en el método DARE para responder a la ansiedad.
+Lo que más me ayuda es sentirme acompañado y escuchado, incluso si no lo entendés del todo.
 
-🗣️ *Si necesitas recursos en un idioma específico, dime cuál y te ayudo a buscarlos.*""",
+¿Quieres que lo adapte más a cómo tú lo vives? Puedo ayudarte con eso.""",
         'faq_response_resources': """📚**Recursos:**
 
 📚 **Libros**
@@ -239,7 +222,7 @@ Estos ejercicios pueden ayudarte a reducir la despersonalización y la ansiedad,
 - **DARE: Break Free from Anxiety** – Based on the DARE method
 
 🗣️ *If you'd like any of these resources in a specific language, let me know and I'll help you find them.*""",
-        'faq_back_button': "⬅️ Volver al menú FAQ", # <-- Added
+        'faq_back_button': "⬅️ Volver al menú FAQ",
         # Feedback
         'feedback_useful': "👍 Útil",
         'feedback_not_useful': "👎 No útil",
@@ -445,6 +428,18 @@ Here are some practical techniques and exercises to help manage DPDR and anxiety
 These exercises can help reduce DPDR and anxiety, and improve your overall mental well-being.""",
         'faq_response_explain_other': """🗣️ **Explain to Others:**
 
+"I'm going through something called depersonalization and derealization. Sometimes I feel like I'm outside of my body, or like the world around me doesn't feel real. I know it sounds strange, but it's not dangerous, and it doesn't mean I'm going crazy.
+
+What's happening is that when we go through intense stress or anxiety, the brain can switch into a kind of 'emergency mode.' It's an automatic, deeply wired survival response called the **freeze response**.
+
+This response comes from our ancestors. When an animal couldn't run or fight, its body would shut down or disconnect to protect itself from trauma. It's a defense mechanism.
+
+In my case, even though there's no real danger, my nervous system still reacts like there is — and that's what causes these weird, disconnected feelings.
+
+The good news is that this state isn't permanent. With time, support, and the right tools, the body and mind can return to feeling safe and present again.
+
+What helps me the most is just feeling heard and supported, even if you don't fully understand it."
+
 Want me to adjust it to match more closely how *you* experience it? I can help with that. (If so, just ask)
 
 📚 **Resources:**
@@ -503,7 +498,7 @@ Want me to adjust it to match more closely how *you* experience it? I can help w
 - **DARE: Break Free from Anxiety** – Based on the DARE method
 
 🗣️ *If you'd like any of these resources in a specific language, let me know and I'll help you find them.*""",
-        'faq_back_button': "⬅️ Back to FAQ Menu", # <-- Added
+        'faq_back_button': "⬅️ Back to FAQ Menu",
         # Feedback
         'feedback_useful': "👍 Useful",
         'feedback_not_useful': "👎 Not Useful",

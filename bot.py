@@ -427,7 +427,7 @@ If you tell me your symptoms, I can help you understand what they might mean."""
 
 When you're feeling disconnected, anxious, or overwhelmed, your body and mind are often stuck in a "survival mode." Simple grounding and breathing exercises can gently signal to your nervous system that you're safe—helping you return to the present moment and reconnect with yourself and your surroundings. These tools don't fix everything instantly, but they can give you a sense of calm and control when things feel out of balance.
 
-Aquí tienes algunos ejercicios que puedes probar:
+Here are a few exercises to try:
 
 🌿 **1. 5-4-3-2-1 Grounding**
 Name:
@@ -465,36 +465,7 @@ The good news is that this state isn't permanent. With time, support, and the ri
 
 What helps me the most is just feeling heard and supported, even if you don't fully understand it."
 
-Want me to adjust it to match more closely how *you* experience it? I can help with that. (If so, just ask)
-
-📚 **Resources:**
-
-📚 **Books**
-- *The Depersonalization Manual* – Shaun O'Connor
-- *Overcoming Depersonalization Disorder* – Fugen Neziroglu & Katharine Donnelly
-- *Feeling Unreal* – Daphne Simeon & Jeffrey Abugel
-- *Stop Unreality* – Kevin Klix
-- *The Body Keeps the Score* – Bessel van der Kolk (trauma-informed perspective)
-
-🌐 **Websites & Online Resources**
-- [**dpmanual.com**](https://www.dpmanual.com/) – Shaun O'Connor's recovery guide
-- [**unrealuk.org**](https://www.unrealuk.org/) – UK charity focused on DPDR
-- [**anxietycentre.com**](https://www.anxietycentre.com/) – In-depth anxiety education and tools
-- [**NAMI.org**](https://www.nami.org/) – General mental health resources
-- [**YouTube: Jordan Hardgrave**](https://www.youtube.com/@JordanHardgrave) – Trauma and anxiety education
-
-💬 **Forums & Communities**
-- [**Reddit: r/DPDR**](https://www.reddit.com/r/DPDR/) – Peer support and shared experiences
-- [**No More DP**](https://www.nomoredp.com/) – Community and tools from a recovered DPDR sufferer
-- **HealthUnlocked: Anxiety Support** – Discussion forums
-
-🧘‍♂️ **Apps & Tools**
-- **Insight Timer** – Guided meditations for grounding and anxiety
-- **CBT Thought Diary** – Cognitive behavioral therapy journaling
-- **MindShift CBT** – Coping tools for anxiety
-- **DARE: Break Free from Anxiety** – Based on the DARE method
-
-🗣️ *If you'd like any of these resources in a specific language, let me know and I'll help you find them.*""",
+Want me to adjust it to match more closely how *you* experience it? I can help with that.""",
         'faq_response_resources': """📚**Resources:**
 
 📚 **Books**

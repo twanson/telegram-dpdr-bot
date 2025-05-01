@@ -163,22 +163,34 @@ Aquí tienes una lista de los síntomas más comunes de la despersonalización/d
 * Sensación de irrealidad al mirarse al espejo
 
 Si me cuentas qué síntomas tienes, puedo ayudarte a entender qué podrían significar.""",
-        'faq_response_exercises': """🧘 **Ejercicios:**
+        'faq_response_exercises': """🧘‍♂️ **Ejercicios:**
 
-Aquí tienes algunos ejercicios prácticos para ayudar a manejar la despersonalización y la ansiedad:
+Cuando te sientes desconectado, ansioso o abrumado, tu cuerpo y tu mente suelen estar atrapados en un estado de "modo supervivencia". Los ejercicios simples de respiración o de anclaje (grounding) pueden enviarle al sistema nervioso una señal de que estás a salvo, ayudándote a volver al momento presente y a reconectarte contigo mismo y con tu entorno. No son soluciones mágicas, pero sí herramientas muy útiles para recuperar la calma y el equilibrio.
 
-1. **Meditación**: Practica meditación guiada regularmente. Puedes usar aplicaciones como Insight Timer o Calm.
-2. **CBT**: Usa un diario de pensamientos negativos para identificar y desafiar tus pensamientos negativos.
-3. **Ejercicios de relajación**: Practica técnicas de relajación como la respiración profunda o el yoga.
-4. **Ejercicios de mindfulness**: Establece un tiempo cada día para estar presente en el momento y observar tus pensamientos sin juzgarlos.
-5. **Ejercicios de autoconocimiento**: Escribe sobre tus emociones y pensamientos para entender mejor cómo te afectan.
-6. **Ejercicios de estrés**: Practica técnicas de reducción del estrés como el estiramiento o el masaje.
-7. **Ejercicios de relajación muscular**: Practica técnicas de relajación muscular para reducir la tensión.
-8. **Ejercicios de autocompasión**: Practica técnicas de autocompasión para sentirte mejor contigo mismo.
-9. **Ejercicios de empatía**: Practica técnicas de empatía para entender mejor a los demás.
-10. **Ejercicios de mindfulness**: Establece un tiempo cada día para estar presente en el momento y observar tus pensamientos sin juzgarlos.
+Aquí tienes algunos ejercicios que puedes probar:
 
-Estos ejercicios pueden ayudarte a reducir la despersonalización y la ansiedad, y a mejorar tu bienestar mental.""",
+🌿 **1. Técnica 5-4-3-2-1**
+Nombra:
+- **5 cosas que puedes ver**
+- **4 cosas que puedes tocar**
+- **3 cosas que puedes oír**
+- **2 cosas que puedes oler**
+- **1 cosa que puedes saborear**
+Este ejercicio te ayuda a volver al presente usando tus sentidos.
+
+🌬️ **2. Respiración en caja**
+Inhala durante **4 segundos**,
+Mantén el aire durante **4 segundos**,
+Exhala durante **4 segundos**,
+Mantén sin aire otros **4 segundos**.
+Repite varias veces para relajar cuerpo y mente.
+
+✋ **3. Respiración con contacto corporal**
+Coloca una mano en el pecho y otra en el abdomen.
+Respira lentamente, sintiendo cómo tus manos suben y bajan.
+Esto te ayuda a reconectar con tu cuerpo de forma suave.
+
+¿Quieres que te recomiende uno según cómo te estás sintiendo ahora? (Si es así, pídelo)""",
         'faq_response_explain_other': """🗣️ **Explicar a Otros:**
 
 Estoy atravesando algo llamado despersonalización y desrealización. A veces siento como si estuviera fuera de mi cuerpo o como si todo a mi alrededor no fuera real. Sé que suena raro, pero no es peligroso ni significa que me esté volviendo loco.
@@ -411,22 +423,34 @@ Here's a list of the most common DPDR (depersonalization and derealization) and 
 * Feeling unreal when looking in the mirror
 
 If you tell me your symptoms, I can help you understand what they might mean.""",
-        'faq_response_exercises': """🧘 **Exercises:**
+        'faq_response_exercises': """🧘‍♂️ **Exercises:**
 
-Here are some practical techniques and exercises to help manage DPDR and anxiety:
+When you're feeling disconnected, anxious, or overwhelmed, your body and mind are often stuck in a "survival mode." Simple grounding and breathing exercises can gently signal to your nervous system that you're safe—helping you return to the present moment and reconnect with yourself and your surroundings. These tools don't fix everything instantly, but they can give you a sense of calm and control when things feel out of balance.
 
-1. **Mindfulness Meditation**: Regularly practice mindfulness meditation. Apps like Insight Timer or Calm can be helpful.
-2. **Cognitive Behavioral Therapy (CBT)**: Use a negative thought diary to identify and challenge negative thoughts.
-3. **Relaxation Techniques**: Practice relaxation techniques such as deep breathing or yoga.
-4. **Mindfulness Exercises**: Set aside time each day to be present and observe your thoughts without judgment.
-5. **Self-awareness Exercises**: Write about your emotions and thoughts to better understand how they affect you.
-6. **Stress Reduction Exercises**: Practice stress-reducing exercises like stretching or massage.
-7. **Muscle Relaxation Exercises**: Practice muscle relaxation techniques to reduce tension.
-8. **Self-compassion Exercises**: Practice self-compassion techniques to feel better about yourself.
-9. **Empathy Exercises**: Practice empathy techniques to better understand others.
-10. **Mindfulness Exercises**: Set aside time each day to be present and observe your thoughts without judgment.
+Aquí tienes algunos ejercicios que puedes probar:
 
-These exercises can help reduce DPDR and anxiety, and improve your overall mental well-being.""",
+🌿 **1. 5-4-3-2-1 Grounding**
+Name:
+- **5 things you can see**
+- **4 things you can touch**
+- **3 things you can hear**
+- **2 things you can smell**
+- **1 thing you can taste**
+This helps anchor your attention in the here and now.
+
+🌬️ **2. Box Breathing**
+Breathe in for **4 seconds**,
+Hold for **4 seconds**,
+Breathe out for **4 seconds**,
+Hold again for **4 seconds**.
+Repeat a few times to calm the body and mind.
+
+✋ **3. Touch + Breath**
+Place one hand on your chest, the other on your belly.
+Take slow breaths, noticing how your hands rise and fall.
+This helps you reconnect with your body and feel more grounded.
+
+Want me to suggest one based on how you're feeling? (If so, just ask)""",
         'faq_response_explain_other': """🗣️ **Explain to Others:**
 
 "I'm going through something called depersonalization and derealization. Sometimes I feel like I'm outside of my body, or like the world around me doesn't feel real. I know it sounds strange, but it's not dangerous, and it doesn't mean I'm going crazy.

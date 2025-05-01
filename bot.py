@@ -233,7 +233,8 @@ Lo que más me ayuda es sentirme acompañado y escuchado, incluso si no lo enten
         # Comandos
         'start_welcome_1': "¡Hola! Soy un guía especializado en la ansiedad y especialmente en sus síntomas DPDR (despersonalización y desrealización).",
         'start_welcome_2': "Puedo ayudarte con información y consejos basados en guías y recursos especializados.",
-        'start_multilingual_info': "🌐 Puedo entender y responder en varios idiomas. Si prefieres otro idioma, simplemente escríbeme en él.", # <-- Added
+        'start_ask_anything': "En la sección /faq encontrarás los temas principales, pero **puedes preguntarme directamente lo que necesites** y te proporcionaré información y consejos.", # <-- Added
+        'start_multilingual_info': "🌐 Puedo entender y responder en varios idiomas. Si prefieres otro idioma, simplemente escríbeme en él.",
         'start_commands_title': "📌 **Comandos disponibles:**",
         'start_faq': "/faq - Ver categorías principales",
         'start_plan': "/plan - Ver tu plan actual y límites",
@@ -509,7 +510,8 @@ Want me to adjust it to match more closely how *you* experience it? I can help w
         # Commands
         'start_welcome_1': "Hi! I'm a guide specializing in anxiety and especially in its DPDR symptoms (depersonalization and derealization).",
         'start_welcome_2': "I can help you with information and advice based on specialized guides and resources.",
-        'start_multilingual_info': "🌐 I can understand and respond in multiple languages. If you prefer another language, just start writing in it.", # <-- Added
+        'start_ask_anything': "In the /faq section you'll find the main topics, but **you can also ask me anything directly**, and I'll provide information and advice.", # <-- Added
+        'start_multilingual_info': "🌐 I can understand and respond in multiple languages. If you prefer another language, just start writing in it.",
         'start_commands_title': "📌 **Available commands:**",
         'start_faq': "/faq - View main categories",
         'start_plan': "/plan - View your current plan and limits",
@@ -1329,11 +1331,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # No necesitamos cerrar la conexión aquí si la obtuvimos de get_db_connection y update_user_thread_id la maneja
     # conn.close() <-- Eliminar si get_db_connection y otras funciones manejan su conexión
 
-    # --- Construcción del mensaje de /start con formato específico ---
+    # --- Construcción del mensaje de /start con formato específico --- 
     # Bloque Inglés
     msg_en_welcome1 = get_text('start_welcome_1', 'en')
     msg_en_welcome2 = get_text('start_welcome_2', 'en')
-    msg_en_multilingual = get_text('start_multilingual_info', 'en') # <-- Get multilingual text
+    msg_en_ask_anything = get_text('start_ask_anything', 'en') # <-- Get new text
+    msg_en_multilingual = get_text('start_multilingual_info', 'en')
     msg_en_commands_title = get_text('start_commands_title', 'en')
     msg_en_faq = get_text('start_faq', 'en')
     msg_en_plan = get_text('start_plan', 'en')
@@ -1347,7 +1350,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     block_en = (
         f"{msg_en_welcome1}\n"
         f"{msg_en_welcome2}\n\n"
-        f"{msg_en_multilingual}\n\n"  # <-- Add multilingual text here
+        f"{msg_en_ask_anything}\n\n"  # <-- Add new text here
+        f"{msg_en_multilingual}\n\n"
         f"{msg_en_commands_title}\n"
         f"{msg_en_faq}\n"
         f"{msg_en_plan}\n"
@@ -1362,7 +1366,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Bloque Español
     msg_es_welcome1 = get_text('start_welcome_1', 'es')
     msg_es_welcome2 = get_text('start_welcome_2', 'es')
-    msg_es_multilingual = get_text('start_multilingual_info', 'es') # <-- Get multilingual text
+    msg_es_ask_anything = get_text('start_ask_anything', 'es') # <-- Get new text
+    msg_es_multilingual = get_text('start_multilingual_info', 'es')
     msg_es_commands_title = get_text('start_commands_title', 'es')
     msg_es_faq = get_text('start_faq', 'es')
     msg_es_plan = get_text('start_plan', 'es')
@@ -1376,7 +1381,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     block_es = (
         f"{msg_es_welcome1}\n"
         f"{msg_es_welcome2}\n\n"
-        f"{msg_es_multilingual}\n\n"  # <-- Add multilingual text here
+        f"{msg_es_ask_anything}\n\n"  # <-- Add new text here
+        f"{msg_es_multilingual}\n\n"
         f"{msg_es_commands_title}\n"
         f"{msg_es_faq}\n"
         f"{msg_es_plan}\n"

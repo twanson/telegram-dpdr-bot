@@ -2066,13 +2066,14 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
         timestamp_dt = datetime.fromisoformat(entry['timestamp'])
         formatted_ts = timestamp_dt.strftime('%Y-%m-%d %H:%M')
         rating_emoji = "👍" if entry['rating'] == 'positive' else "👎"
-        # Escapar caracteres Markdown V2 para ambos textos
+        # Escapar caracteres Markdown V2 para ambos textos Y LA FECHA
         safe_user_query = escape_markdown(entry['user_query'] or 'N/A', version=2)
         safe_assistant_response = escape_markdown(entry['assistant_response'] or 'N/A', version=2)
+        safe_formatted_ts = escape_markdown(formatted_ts, version=2) # <-- Escapar la fecha
 
-        message += f"* **Usuario:** `{entry['user_id']}` \({rating_emoji} {entry['rating']}\)\n" # <-- Escapar paréntesis aquí
-        message += f"* **Fecha:** {formatted_ts}\n"
-        message += f"* **Consulta Usuario:**\n{safe_user_query}\n\n" # Mostrar texto escapado directamente
+        message += f"* **Usuario:** `{entry['user_id']}` \({rating_emoji} {entry['rating']}\)\n" # Paréntesis ya escapados
+        message += f"* **Fecha:** {safe_formatted_ts}\n" # <-- Usar fecha escapada
+        message += f"* **Consulta Usuario:**\n{safe_user_query}\n\n" 
         message += f"* **Respuesta Asistente:**\n{safe_assistant_response}\n" # Mostrar texto escapado directamente
         message += "\-\-\-\n" # <-- Escapar los guiones aquí
 

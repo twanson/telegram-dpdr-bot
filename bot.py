@@ -2074,7 +2074,7 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
         message += f"* **Fecha:** {formatted_ts}\n"
         message += f"* **Consulta Usuario:**\n{safe_user_query}\n\n" # Mostrar texto escapado directamente
         message += f"* **Respuesta Asistente:**\n{safe_assistant_response}\n" # Mostrar texto escapado directamente
-        message += "---\n" # Usar guiones escapados para separador
+        message += "\-\-\-\n" # <-- Escapar los guiones aquí
 
     # Enviar mensajes largos en partes si es necesario
     # Especificar ParseMode.MARKDOWN_V2

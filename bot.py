@@ -2070,7 +2070,7 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
         safe_user_query = escape_markdown(entry['user_query'] or 'N/A', version=2)
         safe_assistant_response = escape_markdown(entry['assistant_response'] or 'N/A', version=2)
 
-        message += f"* **Usuario:** `{entry['user_id']}` ({rating_emoji} {entry['rating']})\n"
+        message += f"* **Usuario:** `{entry['user_id']}` \({rating_emoji} {entry['rating']}\)\n" # <-- Escapar paréntesis aquí
         message += f"* **Fecha:** {formatted_ts}\n"
         message += f"* **Consulta Usuario:**\n{safe_user_query}\n\n" # Mostrar texto escapado directamente
         message += f"* **Respuesta Asistente:**\n{safe_assistant_response}\n" # Mostrar texto escapado directamente

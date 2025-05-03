@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 import httpx
 from datetime import datetime, date, timedelta # <-- Añadir timedelta
 import stripe # <-- Añadir import
+from telegram.helpers import escape_markdown # <-- Añadir esta importación
 
 # Configurar logging más detallado
 logging.basicConfig(
@@ -2065,19 +2066,23 @@ async def admin_view_feedback_command(update: Update, context: ContextTypes.DEFA
         timestamp_dt = datetime.fromisoformat(entry['timestamp'])
         formatted_ts = timestamp_dt.strftime('%Y-%m-%d %H:%M')
         rating_emoji = "👍" if entry['rating'] == 'positive' else "👎"
+        # Escapar caracteres Markdown V2 para ambos textos
+        safe_user_query = escape_markdown(entry['user_query'] or 'N/A', version=2)
+        safe_assistant_response = escape_markdown(entry['assistant_response'] or 'N/A', version=2)
+
         message += f"* **Usuario:** `{entry['user_id']}` ({rating_emoji} {entry['rating']})\n"
         message += f"* **Fecha:** {formatted_ts}\n"
-        # Escapamos caracteres markdown en el mensaje de feedback (usando doble \\)
-        safe_message = entry['user_query'].replace('*', '\\*').replace('_', '\\_').replace('`', '\\`')
-        message += f"* **Mensaje Asistente:** \n```\n{safe_message}\n```\n"
-        message += "---\n"
+        message += f"* **Consulta Usuario:**\n{safe_user_query}\n\n" # Mostrar texto escapado directamente
+        message += f"* **Respuesta Asistente:**\n{safe_assistant_response}\n" # Mostrar texto escapado directamente
+        message += "---\n" # Usar guiones escapados para separador
 
     # Enviar mensajes largos en partes si es necesario
+    # Especificar ParseMode.MARKDOWN_V2
     if len(message) > 4096:
         for i in range(0, len(message), 4096):
-            await update.message.reply_text(message[i:i+4096], parse_mode='Markdown')
+            await update.message.reply_text(message[i:i+4096], parse_mode=ParseMode.MARKDOWN_V2)
     else:
-        await update.message.reply_text(message, parse_mode='Markdown')
+        await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN_V2)
 
 async def admin_list_users_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """[ADMIN] Lista todos los usuarios, opcionalmente filtrados por plan."""

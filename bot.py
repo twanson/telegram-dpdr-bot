@@ -1495,7 +1495,10 @@ async def reset_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def faq_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    lang = context.user_data.get('lang', 'en') # Obtener idioma o default a 'en'
+    # --- Corregir obtención de idioma --- 
+    lang = update.effective_user.language_code or 'en' # Usar el language_code del usuario
+    # lang = context.user_data.get('lang', 'en') # <-- Línea incorrecta eliminada
+    # -----------------------------------
     user_data = get_user(user_id)
 
     if not user_data:

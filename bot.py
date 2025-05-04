@@ -607,7 +607,14 @@ def get_text(key: str, lang_code: str | None = 'en', default: str | None = None,
     Usa 'default' si la clave no se encuentra en ningún idioma.
     """
     # Determinar el idioma a usar, con fallback a 'en'
-    lang = lang_code if lang_code in LOCALES else 'en'
+    # --- Lógica de idioma mejorada --- 
+    if lang_code and lang_code.startswith('es'):
+        lang = 'es' # Tratar 'es-ES', 'es-419', etc., como 'es'
+    elif lang_code in LOCALES:
+        lang = lang_code # Usar código exacto si existe (p.ej., 'en')
+    else:
+        lang = 'en' # Fallback final
+    # ---------------------------------
     
     # Obtener la plantilla de texto para el idioma determinado
     # Si la clave no existe en ese idioma, intentar obtenerla de 'en'
